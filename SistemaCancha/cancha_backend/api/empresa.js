@@ -18,8 +18,36 @@ const respuesta = (exito, mensaje, datos = null) => ({
 const obtenerDatosEspecificos = async (limite = 10, offset = 0) => {
   try {
     const queryDatos = `
-      SELECT e.id_empresa, e.fecha_registrado, e.nombre_sistema, e.correo_empresa, e.telefono, e.direccion, 
-             a.id_administrador, p.nombre AS admin_nombre, p.apellido AS admin_apellido
+       SELECT 
+        e.id_empresa,
+        e.fecha_registrado,
+        e.nombre_sistema,
+        e.logo_imagen,              -- 👈 AÑADIDO
+        e.titulo_h1,                -- 👈 AÑADIDO
+        e.descripcion_h1,           -- 👈 AÑADIDO
+        e.te_ofrecemos,             -- 👈 AÑADIDO
+        e.imagen_1,                 -- 👈 AÑADIDO
+        e.imagen_2,                 -- 👈 AÑADIDO
+        e.imagen_3,                 -- 👈 AÑADIDO
+        e.titulo_1,                 -- 👈 AÑADIDO
+        e.titulo_2,                 -- 👈 AÑADIDO
+        e.titulo_3,                 -- 👈 AÑADIDO
+        e.descripcion_1,            -- 👈 AÑADIDO
+        e.descripcion_2,            -- 👈 AÑADIDO
+        e.descripcion_3,            -- 👈 AÑADIDO
+        e.mision,                   -- 👈 AÑADIDO
+        e.vision,                   -- 👈 AÑADIDO
+        e.nuestro_objetivo,         -- 👈 AÑADIDO
+        e.objetivo_1,               -- 👈 AÑADIDO
+        e.objetivo_2,               -- 👈 AÑADIDO
+        e.objetivo_3,               -- 👈 AÑADIDO
+        e.quienes_somos,            -- 👈 AÑADIDO
+        e.correo_empresa,
+        e.telefono,
+        e.direccion,
+        a.id_administrador,
+        p.nombre AS admin_nombre,
+        p.apellido AS admin_apellido
       FROM empresa e
       JOIN administrador a ON e.id_administrador = a.id_administrador
       JOIN usuario p ON a.id_administrador = p.id_persona
