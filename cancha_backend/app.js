@@ -35,6 +35,7 @@ const qr_controlRoutes = require('./api/roles/qr_control');
 const reporte_encargadoRoutes = require('./api/roles/reporte_encargado');
 const resena_clienteRoutes = require('./api/roles/resena_cliente');
 const reserva_clienteRoutes = require('./api/roles/reserva_cliente');
+const solicitud_admin_esp_depRoutes = require('./api/roles/solicitud_admin');
 
 
 const x_imagenRoutes = require('./api/x_imagen');
@@ -82,6 +83,7 @@ try {
   app.use('/reporte-encargado', reporte_encargadoRoutes);
   app.use('/resena-cliente', resena_clienteRoutes);
   app.use('/reserva-cliente', reserva_clienteRoutes);
+  app.use('/solicitud-admin-esp-dep', solicitud_admin_esp_depRoutes);
 
   app.use('/x_imagen', x_imagenRoutes)
 

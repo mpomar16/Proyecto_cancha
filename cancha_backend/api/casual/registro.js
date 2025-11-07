@@ -12,6 +12,66 @@ const { unlinkFile, createUploadAndProcess } = require("../../middleware/multer"
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 
 // --- Modelos ---
+// --- Helpers de Solicitud admin_esp_dep ---
+
+// Espacios sin admin (para el modal del registro)
+const listarEspaciosLibres = async (req, res) => {
+  try {
+    const q = `
+      SELECT id_espacio, nombre, direccion
+      FROM espacio_deportivo
+      WHERE id_admin_esp_dep IS NULL
+      ORDER BY nombre ASC;
+    `;
+    const r = await pool.query(q);
+    res.json(response(true, 'Espacios deportivos disponibles', r.rows));
+  } catch (e) {
+    console.error('listarEspaciosLibres:', e);
+    res.status(500).json(response(false, 'Error interno del servidor'));
+  }
+};
+
+// Crear solicitud (uso interno + controller público)
+const crearSolicitudAdmEspDep = async (idUsuario, idEspacio, motivo = null) => {
+  // Verificar que el espacio esté libre
+  const chk = await pool.query(
+    `SELECT id_admin_esp_dep FROM espacio_deportivo WHERE id_espacio = $1`,
+    [idEspacio]
+  );
+  if (!chk.rows[0]) throw new Error('Espacio deportivo no encontrado');
+  if (chk.rows[0].id_admin_esp_dep) throw new Error('El espacio ya tiene un administrador asignado');
+
+  // Insertar solicitud (tu índice único evita duplicados "pendiente")
+  const ins = `
+    INSERT INTO solicitud_admin_esp_dep (id_usuario, id_espacio, motivo)
+    VALUES ($1, $2, $3)
+    RETURNING *;
+  `;
+  const { rows } = await pool.query(ins, [idUsuario, idEspacio, motivo || null]);
+  return rows[0];
+};
+
+const crearSolicitudAdmEspDepController = async (req, res) => {
+  try {
+    const idUsuario = parseInt(req.body.id_usuario);
+    const idEspacio = parseInt(req.body.id_espacio);
+    const motivo = req.body.motivo || null;
+
+    if (!idUsuario || !idEspacio) {
+      return res.status(400).json(response(false, 'id_usuario e id_espacio son obligatorios'));
+    }
+
+    const s = await crearSolicitudAdmEspDep(idUsuario, idEspacio, motivo);
+    res.status(201).json(response(true, 'Solicitud creada correctamente', s));
+  } catch (e) {
+    console.error('crearSolicitudAdmEspDepController:', e);
+    if (e.code === '23505') {
+      return res.status(400).json(response(false, 'Ya existe una solicitud pendiente para este espacio'));
+    }
+    res.status(400).json(response(false, e.message));
+  }
+};
+
 
 const obtenerValoresEnum = async (tipoEnum) => {
   try {
@@ -335,9 +395,22 @@ const crearUsuario = async (datosUsuario) => {
     const idUsuario = resultUsuario.rows[0].id_persona;
 
     // --- Asignar rol si se proporciona ---
-    if (rolAAgregar) {
-      rolAsignado = await asignarRolUsuario(idUsuario, rolAAgregar, datosUsuario.datos_especificos || {});
+    // --- Asignar rol si se proporciona ---
+if (rolAAgregar) {
+  if (rolAAgregar === 'admin_esp_dep') {
+    const idEspacio = parseInt(datosUsuario.id_espacio);
+    if (!idEspacio) {
+      throw new Error('Debe seleccionar un espacio deportivo (id_espacio) para solicitar admin_esp_dep');
     }
+    // En lugar de crear el rol directamente, creamos la SOLICITUD
+    await crearSolicitudAdmEspDep(idUsuario, idEspacio, datosUsuario.motivo || datosUsuario.carta || null);
+    rolAsignado = null; // aún no tiene el rol, queda en "pendiente"
+  } else {
+    // Otros roles se pueden crear directo como antes
+    rolAsignado = await asignarRolUsuario(idUsuario, rolAAgregar, datosUsuario.datos_especificos || {});
+  }
+}
+
 
     // Obtener datos completos para retornar
     const usuarioCompleto = await obtenerUsuarioPorId(idUsuario);
@@ -460,41 +533,36 @@ const login = async (req, res) => {
  * Controlador para POST - Crear usuario (con Multer para form-data)
  */
 const crearUsuarioController = async (req, res) => {
-
-
   try {
-
     const datos = { ...req.body };
 
     // Validaciones básicas
     const camposObligatorios = ['usuario', 'correo', 'contrasena'];
-    const faltantes = camposObligatorios.filter(campo => !datos[campo] || datos[campo].toString().trim() === '');
-
+    const faltantes = camposObligatorios.filter(c => !datos[c] || datos[c].toString().trim() === '');
     if (faltantes.length > 0) {
-      // Limpiar archivo subido si faltan campos obligatorios
-      if (processedFiles.imagen_perfil) {
-        await unlinkFile(processedFiles.imagen_perfil);
-      }
       return res.status(400).json(
-        respuesta(false, `Faltan campos obligatorios: ${faltantes.join(', ')}`)
+        response(false, `Faltan campos obligatorios: ${faltantes.join(', ')}`)
       );
     }
 
-
     const nuevoUsuario = await crearUsuario(datos);
 
-    let mensaje = 'Usuario casual creado correctamente';
+    // Mensaje según rol solicitado
+    let mensaje = 'Usuario creado correctamente';
+    if ((datos.rol || datos.rol_agregar) === 'admin_esp_dep') {
+      mensaje = 'Solicitud registrada. Un ADMINISTRADOR debe aprobar o rechazar tu petición.';
+    }
 
-    res.status(201).json(respuesta(true, mensaje, { usuario: nuevoUsuario }));
+    res.status(201).json(response(true, mensaje, { usuario: nuevoUsuario }));
   } catch (error) {
     console.error('Error in crearUsuarioController:', error);
-
     if (error.code === '23505') {
-      return res.status(400).json(respuesta(false, 'El correo o usuario ya existe'));
+      return res.status(400).json(response(false, 'El correo o usuario ya existe'));
     }
-    res.status(500).json(respuesta(false, error.message));
+    res.status(500).json(response(false, error.message));
   }
 };
+
 
 const actualizarUsuarioController = async (req, res) => {
   let uploadedFile = null;
@@ -506,7 +574,7 @@ const actualizarUsuarioController = async (req, res) => {
     const usuarioActual = await obtenerUsuarioPorId(parseInt(id));
 
     if (!id || isNaN(id)) {
-      return res.status(400).json(respuesta(false, 'ID de usuario no válido'));
+      return res.status(400).json(response(false, 'ID de usuario no válido'));
     }
 
     // Procesar archivo subido con Multer (imagen_perfil, opcional)
@@ -529,7 +597,7 @@ const actualizarUsuarioController = async (req, res) => {
       if (uploadedFile) {
         await unlinkFile(uploadedFile);
       }
-      return res.status(400).json(respuesta(false, 'No se proporcionaron campos para actualizar'));
+      return res.status(400).json(response(false, 'No se proporcionaron campos para actualizar'));
     }
 
     const usuarioActualizado = await actualizarUsuario(parseInt(id), camposActualizar);
@@ -539,7 +607,7 @@ const actualizarUsuarioController = async (req, res) => {
       if (uploadedFile) {
         await unlinkFile(uploadedFile);
       }
-      return res.status(404).json(respuesta(false, 'Usuario no encontrado'));
+      return res.status(404).json(response(false, 'Usuario no encontrado'));
     }
 
     // Eliminar archivo anterior después de una actualización exitosa
@@ -569,7 +637,7 @@ const actualizarUsuarioController = async (req, res) => {
       await unlinkFile(uploadedFile);
     }
 
-    res.status(500).json(respuesta(false, error.message));
+    res.status(500).json(response(false, error.message));
   }
 };
 
@@ -579,5 +647,10 @@ const router = express.Router();
 router.post('/sign-in', login);
 router.post('/', crearUsuarioController);
 router.patch('/:id', actualizarUsuarioController);
+// Listar espacios libres (para el modal del registro)
+router.get('/espacios-libres', listarEspaciosLibres);
+// Crear solicitud (si registras al usuario primero y luego disparas la solicitud)
+router.post('/solicitudes/adm-esp-dep', crearSolicitudAdmEspDepController);
+
 
 module.exports = router;

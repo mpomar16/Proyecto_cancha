@@ -46,8 +46,8 @@ const obtenerDatosEspecificos = async (limite = 10, offset = 0) => {
         p.apellido AS admin_apellido,
         pr.promedio_estrellas
       FROM ESPACIO_DEPORTIVO e
-      JOIN ADMIN_ESP_DEP a ON e.id_admin_esp_dep = a.id_admin_esp_dep
-      JOIN USUARIO p ON a.id_admin_esp_dep = p.id_persona
+      LEFT JOIN ADMIN_ESP_DEP a ON e.id_admin_esp_dep = a.id_admin_esp_dep
+      LEFT JOIN USUARIO p ON a.id_admin_esp_dep = p.id_persona
       LEFT JOIN promedio_resenas pr ON e.id_espacio = pr.id_espacio
       ORDER BY pr.promedio_estrellas DESC, e.id_espacio
       LIMIT $1 OFFSET $2
@@ -75,7 +75,7 @@ const obtenerEspaciosFiltrados = async (tipoFiltro, limite = 10, offset = 0) => 
     const ordenesPermitidas = {
       nombre: 'e.nombre ASC',
       direccion: 'e.direccion ASC',
-      admin_nombre: 'p.nombre ASC, p.apellido ASC',
+      admin_nombre: 'p.nombre ASC NULLS LAST, p.apellido ASC NULLS LAST',
       default: 'e.id_espacio ASC'
     };
 
@@ -85,8 +85,8 @@ const obtenerEspaciosFiltrados = async (tipoFiltro, limite = 10, offset = 0) => 
       SELECT e.id_espacio, e.nombre, e.direccion, e.latitud, e.longitud, e.horario_apertura, e.horario_cierre, 
              a.id_admin_esp_dep, p.nombre AS admin_nombre, p.apellido AS admin_apellido
       FROM espacio_deportivo e
-      JOIN admin_esp_dep a ON e.id_admin_esp_dep = a.id_admin_esp_dep
-      JOIN usuario p ON a.id_admin_esp_dep = p.id_persona
+      LEFT JOIN admin_esp_dep a ON e.id_admin_esp_dep = a.id_admin_esp_dep
+      LEFT JOIN usuario p ON a.id_admin_esp_dep = p.id_persona
       ORDER BY ${orden}
       LIMIT $1 OFFSET $2
     `;
@@ -116,8 +116,8 @@ const buscarEspacios = async (texto, limite = 10, offset = 0) => {
       SELECT e.id_espacio, e.nombre, e.direccion, e.latitud, e.longitud, e.horario_apertura, e.horario_cierre, 
              a.id_admin_esp_dep, p.nombre AS admin_nombre, p.apellido AS admin_apellido
       FROM espacio_deportivo e
-      JOIN admin_esp_dep a ON e.id_admin_esp_dep = a.id_admin_esp_dep
-      JOIN usuario p ON a.id_admin_esp_dep = p.id_persona
+      LEFT JOIN admin_esp_dep a ON e.id_admin_esp_dep = a.id_admin_esp_dep
+      LEFT JOIN usuario p ON a.id_admin_esp_dep = p.id_persona
       WHERE 
         e.nombre ILIKE $1 OR 
         e.direccion ILIKE $1 OR 
@@ -131,8 +131,8 @@ const buscarEspacios = async (texto, limite = 10, offset = 0) => {
     const queryTotal = `
       SELECT COUNT(*) 
       FROM espacio_deportivo e
-      JOIN admin_esp_dep a ON e.id_admin_esp_dep = a.id_admin_esp_dep
-      JOIN usuario p ON a.id_admin_esp_dep = p.id_persona
+      LEFT JOIN admin_esp_dep a ON e.id_admin_esp_dep = a.id_admin_esp_dep
+      LEFT JOIN usuario p ON a.id_admin_esp_dep = p.id_persona
       WHERE 
         e.nombre ILIKE $1 OR 
         e.direccion ILIKE $1 OR 
@@ -166,8 +166,8 @@ const obtenerEspacioPorId = async (id) => {
     const query = `
       SELECT e.*, a.id_admin_esp_dep, p.nombre AS admin_nombre, p.apellido AS admin_apellido, p.correo AS admin_correo
       FROM espacio_deportivo e
-      JOIN admin_esp_dep a ON e.id_admin_esp_dep = a.id_admin_esp_dep
-      JOIN usuario p ON a.id_admin_esp_dep = p.id_persona
+      LEFT JOIN admin_esp_dep a ON e.id_admin_esp_dep = a.id_admin_esp_dep
+      LEFT JOIN usuario p ON a.id_admin_esp_dep = p.id_persona
       WHERE e.id_espacio = $1
     `;
     const result = await pool.query(query, [id]);
@@ -186,8 +186,15 @@ const crearEspacio = async (datosEspacio) => {
     if (!datosEspacio.nombre || datosEspacio.nombre.trim() === '') {
       throw new Error('El nombre es obligatorio');
     }
-    if (!datosEspacio.id_admin_esp_dep || isNaN(datosEspacio.id_admin_esp_dep)) {
-      throw new Error('El ID del administrador es obligatorio y debe ser un número');
+
+    // id_admin_esp_dep opcional
+    let adminId = null;
+    if (datosEspacio.id_admin_esp_dep !== undefined && datosEspacio.id_admin_esp_dep !== null && datosEspacio.id_admin_esp_dep !== '') {
+      adminId = parseInt(datosEspacio.id_admin_esp_dep);
+      if (isNaN(adminId)) throw new Error('id_admin_esp_dep inválido');
+      const adminQuery = `SELECT 1 FROM admin_esp_dep WHERE id_admin_esp_dep = $1`;
+      const adminResult = await pool.query(adminQuery, [adminId]);
+      if (adminResult.rowCount === 0) throw new Error('El administrador asociado no existe');
     }
 
     // Validar coordenadas
@@ -198,22 +205,13 @@ const crearEspacio = async (datosEspacio) => {
       throw new Error('La longitud debe estar entre -180 y 180');
     }
 
-    // Validar horarios
-    const validarHora = (hora) => /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/.test(hora);
+    // Validar horarios (acepta HH:MM o HH:MM:SS)
+    const validarHora = (hora) => /^([0-1]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(hora);
     if (datosEspacio.horario_apertura && !validarHora(datosEspacio.horario_apertura)) {
-      throw new Error('La hora de apertura no es válida (formato HH:MM:SS)');
+      throw new Error('La hora de apertura no es válida (HH:MM o HH:MM:SS)');
     }
     if (datosEspacio.horario_cierre && !validarHora(datosEspacio.horario_cierre)) {
-      throw new Error('La hora de cierre no es válida (formato HH:MM:SS)');
-    }
-
-    // Verificar si el administrador existe
-    const adminQuery = `
-      SELECT id_admin_esp_dep FROM admin_esp_dep WHERE id_admin_esp_dep = $1
-    `;
-    const adminResult = await pool.query(adminQuery, [datosEspacio.id_admin_esp_dep]);
-    if (!adminResult.rows[0]) {
-      throw new Error('El administrador asociado no existe');
+      throw new Error('La hora de cierre no es válida (HH:MM o HH:MM:SS)');
     }
 
     const query = `
@@ -238,7 +236,7 @@ const crearEspacio = async (datosEspacio) => {
       datosEspacio.imagen_sec_2 || null,
       datosEspacio.imagen_sec_3 || null,
       datosEspacio.imagen_sec_4 || null,
-      datosEspacio.id_admin_esp_dep
+      adminId // ← puede ir NULL sin problema
     ];
 
     const { rows } = await pool.query(query, values);
@@ -248,6 +246,7 @@ const crearEspacio = async (datosEspacio) => {
     throw new Error(error.message);
   }
 };
+
 
 /**
  * Actualizar espacio deportivo parcialmente
@@ -463,7 +462,7 @@ const crearEspacioController = async (req, res) => {
     const datos = { ...req.body };
 
     // Validaciones básicas
-    const camposObligatorios = ['nombre', 'id_admin_esp_dep'];
+    const camposObligatorios = ['nombre'];
     const faltantes = camposObligatorios.filter(campo => !datos[campo] || datos[campo].toString().trim() === '');
 
     if (faltantes.length > 0) {
