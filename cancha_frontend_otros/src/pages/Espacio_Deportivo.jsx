@@ -9,9 +9,10 @@ const permissionsConfig = {
 };
 
 const getEffectiveRole = () => {
-  const keys = Object.keys(permissionsConfig);
-  const bag = new Set();
   try {
+    const keys = Object.keys(permissionsConfig);
+    const bag = new Set();
+
     const u = JSON.parse(localStorage.getItem('user') || '{}');
     const arr = Array.isArray(u?.roles) ? u.roles : [];
     for (const r of arr) {
@@ -19,21 +20,29 @@ const getEffectiveRole = () => {
       else if (r && typeof r === 'object') ['rol','role','nombre','name'].forEach(k => { if (r[k]) bag.add(r[k]); });
     }
     if (bag.size === 0 && u?.role) bag.add(u.role);
-  } catch {}
-  const tok = localStorage.getItem('token');
-  if (bag.size === 0 && tok && tok.split('.').length === 3) {
-    try {
-      const payload = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
-      const t = Array.isArray(payload?.roles) ? payload.roles : (payload?.rol ? [payload.rol] : []);
-      t.forEach(v => bag.add(v));
-    } catch {}
+
+    const tok = localStorage.getItem('token');
+    if (bag.size === 0 && tok && tok.split('.').length === 3) {
+      try {
+        const b = tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+        const pad = '='.repeat((4 - (b.length % 4)) % 4);
+        const payload = JSON.parse(atob(b + pad));
+        const t = Array.isArray(payload?.roles) ? payload.roles : (payload?.rol ? [payload.rol] : []);
+        t.forEach(v => bag.add(v));
+      } catch {}
+    }
+
+    const norm = Array.from(bag).map(v => String(v || '').trim().toUpperCase().replace(/\s+/g,'_'));
+    const map = v => v === 'ADMIN' ? 'ADMINISTRADOR' : v;
+    const norm2 = norm.map(map);
+    const prio = ['ADMINISTRADOR','ADMIN_ESP_DEP'];
+    const pick = prio.find(r => norm2.includes(r) && keys.includes(r)) || norm2.find(r => keys.includes(r)) || 'DEFAULT';
+    return pick || 'DEFAULT';
+  } catch {
+    return 'DEFAULT';
   }
-  const norm = Array.from(bag).map(v => String(v || '').trim().toUpperCase().replace(/\s+/g,'_'));
-  const map = v => v === 'ADMIN' ? 'ADMINISTRADOR' : v;
-  const norm2 = norm.map(map);
-  const prio = ['ADMINISTRADOR','ADMIN_ESP_DEP'];
-  return prio.find(r => norm2.includes(r) && keys.includes(r)) || norm2.find(r => keys.includes(r)) || 'DEFAULT';
 };
+
 
 const EspacioDeportivo = () => {
   const [espacios, setEspacios] = useState([]);
@@ -64,7 +73,7 @@ const EspacioDeportivo = () => {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 10;
-  const [role, setRole] = useState(() => getEffectiveRole());
+  const [role, setRole] = useState('DEFAULT');
 
   const [selectedFiles, setSelectedFiles] = useState({
     imagen_principal: null,
@@ -95,14 +104,14 @@ const EspacioDeportivo = () => {
 
   useEffect(() => { setError(null); }, [role]);
 
-  const permissions = role && permissionsConfig[role] ? permissionsConfig[role] : permissionsConfig.DEFAULT;
+  const permissions = permissionsConfig[role] || permissionsConfig.DEFAULT;
 
   useEffect(() => {
     const fetchAdministradores = async () => {
       try {
         const response = await api.get('/admin_esp_dep/datos-especificos');
         if (response.data?.exito) setAdministradores(response.data.datos.administradores || []);
-      } catch {}
+      } catch { }
     };
     fetchAdministradores();
   }, []);
@@ -359,9 +368,9 @@ const EspacioDeportivo = () => {
         })
       );
       Object.entries(filteredData).forEach(([key, value]) => {
-        if (!['imagen_principal','imagen_sec_1','imagen_sec_2','imagen_sec_3','imagen_sec_4'].includes(key)) data.append(key, value);
+        if (!['imagen_principal', 'imagen_sec_1', 'imagen_sec_2', 'imagen_sec_3', 'imagen_sec_4'].includes(key)) data.append(key, value);
       });
-      ['imagen_principal','imagen_sec_1','imagen_sec_2','imagen_sec_3','imagen_sec_4'].forEach(field => {
+      ['imagen_principal', 'imagen_sec_1', 'imagen_sec_2', 'imagen_sec_3', 'imagen_sec_4'].forEach(field => {
         if (selectedFiles[field]) data.append(field, selectedFiles[field]);
       });
 
@@ -390,7 +399,7 @@ const EspacioDeportivo = () => {
     if (newPage >= 1 && newPage <= Math.ceil(total / limit)) setPage(newPage);
   };
 
-  if (!role) return <p>Cargando permisos...</p>;
+  if (role == null) return <p>Cargando permisos...</p>;
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -428,6 +437,7 @@ const EspacioDeportivo = () => {
             <option value="nombre">Por nombre</option>
             <option value="direccion">Por direccion</option>
             <option value="admin_nombre">Por administrador</option>
+            <option value="sin_admin">Sin administrador</option>
           </select>
 
           {permissions.canCreate && (
@@ -468,7 +478,10 @@ const EspacioDeportivo = () => {
                     <td className="px-4 py-2">
                       {e.horario_apertura && e.horario_cierre ? `${e.horario_apertura} - ${e.horario_cierre}` : '-'}
                     </td>
-                    <td className="px-4 py-2">{`${e.admin_nombre||"Sin"} ${e.admin_apellido||"Admin"}`}</td>
+                    <td className="px-4 py-2">
+                      {e.id_admin_esp_dep ? `${e.admin_nombre} ${e.admin_apellido}` : 'Sin administrador'}
+                    </td>
+
                     <td className="px-4 py-2 flex gap-2">
                       {permissions.canView && (
                         <button
@@ -723,16 +736,16 @@ const EspacioDeportivo = () => {
                   value={formData.id_admin_esp_dep}
                   onChange={handleInputChange}
                   className="w-full border rounded px-3 py-2 bg-gray-100"
-                  required
                   disabled={viewMode}
                 >
-                  <option value="">Seleccione un administrador</option>
+                  <option value="">Ninguno (opcional)</option>
                   {administradores.map(a => (
                     <option key={a.id_admin_esp_dep} value={a.id_admin_esp_dep}>
                       {`${a.nombre} ${a.apellido}`}
                     </option>
                   ))}
                 </select>
+
               </div>
 
               <div className="col-span-2 flex justify-end mt-4">
