@@ -1,37 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import api from './services/api';
-import PaginaPrincipal from './pagina_principal';
-import EspaciosDeportivos from './casual/EspaciosDeportivos';
-import CanchasEspacio from './casual/CanchasEspacio';
-import Cancha from './casual/Cancha';
+import React, { useState, useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Link,
+  useNavigate,
+} from "react-router-dom";
+import api from "./services/api";
+import PaginaPrincipal from "./pagina_principal";
+import EspaciosDeportivos from "./casual/EspaciosDeportivos";
+import CanchasEspacio from "./casual/CanchasEspacio";
+import Cancha from "./casual/Cancha";
 
 const AppContent = () => {
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [correo, setCorreo] = useState('');
-  const [contrasena, setContrasena] = useState('');
+  const [correo, setCorreo] = useState("");
+  const [contrasena, setContrasena] = useState("");
   const [loginError, setLoginError] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
   const navigate = useNavigate();
 
   const getImageUrl = (path) => {
-    if (!path) return '';
-    const base = api.defaults.baseURL.replace(/\/$/, '');
-    const cleanPath = path.replace(/^\//, '');
+    if (!path) return "";
+    const base = api.defaults.baseURL.replace(/\/$/, "");
+    const cleanPath = path.replace(/^\//, "");
     return `${base}/${cleanPath}`;
   };
 
   useEffect(() => {
     const fetchCompanyData = async () => {
       try {
-        const response = await api.get('/empresa/dato-individual/2');
+        const response = await api.get("/empresa/dato-individual/2");
         setCompany(response.data.datos.empresa);
         setLoading(false);
       } catch (err) {
-        setError('Error al cargar los datos de la empresa');
+        setError("Error al cargar los datos de la empresa");
         setLoading(false);
       }
     };
@@ -40,8 +46,8 @@ const AppContent = () => {
   }, []);
 
   const handleImageError = (e) => {
-    console.error('Error cargando imagen:', e.target.src);
-    e.target.style.display = 'none';
+    console.error("Error cargando imagen:", e.target.src);
+    e.target.style.display = "none";
   };
 
   const handleIniciarSesionClick = () => {
@@ -50,8 +56,8 @@ const AppContent = () => {
 
   const handleCloseModal = () => {
     setShowLoginModal(false);
-    setCorreo('');
-    setContrasena('');
+    setCorreo("");
+    setContrasena("");
     setLoginError(null);
   };
 
@@ -61,7 +67,7 @@ const AppContent = () => {
     setLoginError(null);
 
     try {
-      const response = await api.post('/registro/sign-in', {
+      const response = await api.post("/registro/sign-in", {
         correo,
         contrasena,
       });
@@ -69,19 +75,19 @@ const AppContent = () => {
       const data = response.data;
 
       if (data.success && data.data.token && data.data.usuario) {
-        localStorage.setItem('token', data.data.token);
-        localStorage.setItem('user', JSON.stringify(data.data.usuario));
+        localStorage.setItem("token", data.data.token);
+        localStorage.setItem("user", JSON.stringify(data.data.usuario));
         setLoginLoading(false);
         setShowLoginModal(false);
-        navigate('/administrador'); // Redirect to /administrador after successful login
+        navigate("/administrador"); // Redirect to /administrador after successful login
       } else {
-        setLoginError('Respuesta del servidor inválida. Intenta de nuevo.');
+        setLoginError("Respuesta del servidor inválida. Intenta de nuevo.");
         setLoginLoading(false);
       }
     } catch (err) {
       setLoginError(
         err.response?.data?.message ||
-          'Error al iniciar sesión. Verifica tus credenciales.'
+          "Error al iniciar sesión. Verifica tus credenciales."
       );
       setLoginLoading(false);
     }
@@ -100,36 +106,46 @@ const AppContent = () => {
 
   if (error) {
     return (
-      <div className="bg-[#A31621]/10 border-l-4 border-[#A31621] text-[#A31621] p-4 m-4 rounded-lg shadow-sm" role="alert">
+      <div
+        className="bg-[#A31621]/10 border-l-4 border-[#A31621] text-[#A31621] p-4 m-4 rounded-lg shadow-sm"
+        role="alert"
+      >
         <p className="font-medium">{error}</p>
       </div>
     );
   }
-
+  // NAVAR DEL ADMINISTRADOR
   return (
     <div className="min-h-screen bg-[#FFFFFF] p-6 font-sans relative">
       {/* Header con botones */}
-      <div className="fixed top-6 right-6 z-50 flex gap-4">
-        <Link
-          to="/espacios-deportivos"
-          className="bg-[#01CD6C] hover:bg-[#00b359] text-[#FFFFFF] font-semibold py-3 px-6 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-50"
-        >
-          Espacios Deportivos →
-        </Link>
-        <Link
-          to="/canchas"
-          className="bg-[#01CD6C] hover:bg-[#00b359] text-[#FFFFFF] font-semibold py-3 px-6 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-50"
-        >
-          Canchas →
-        </Link>
-        <button
-          onClick={handleIniciarSesionClick}
-          className="bg-[#01CD6C] hover:bg-[#00b359] text-[#FFFFFF] font-semibold py-3 px-6 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-50"
-        >
-          Iniciar Sesión →
-        </button>
+      <div className="fixed top-0 left-0 w-full bg-[#0F2634] shadow-md z-40">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-end gap-4 pr-1">
+          <Link
+            to="/espacios-deportivos"
+            className="bg-[#01CD6C] hover:bg-[#00b359] text-[#FFFFFF] text-lg font-semibold py-3 px-7 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-50"
+          >
+            Espacios Deportivos
+          </Link>
+
+          <Link
+            to="/canchas"
+            className="bg-[#01CD6C] hover:bg-[#00b359] text-[#FFFFFF] text-lg font-semibold py-3 px-7 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-50"
+          >
+            Canchas
+          </Link>
+
+          <button
+            onClick={handleIniciarSesionClick}
+            className="bg-[#01CD6C] hover:bg-[#00b359] text-[#FFFFFF] text-lg font-semibold py-3 px-7 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-50"
+          >
+            Iniciar Sesión
+          </button>
+        </div>
       </div>
 
+      <br />
+      <br />
+      <br />
       {/* Modal de Login */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-[#0F2634] bg-opacity-50 flex items-center justify-center z-50">
@@ -140,10 +156,15 @@ const AppContent = () => {
             >
               &times;
             </button>
-            <h2 className="text-2xl font-bold text-center text-[#23475F] mb-6">Iniciar Sesión</h2>
+            <h2 className="text-2xl font-bold text-center text-[#23475F] mb-6">
+              Iniciar Sesión
+            </h2>
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label htmlFor="correo" className="block text-sm font-medium text-[#23475F]">
+                <label
+                  htmlFor="correo"
+                  className="block text-sm font-medium text-[#23475F]"
+                >
                   Correo
                 </label>
                 <input
@@ -157,7 +178,10 @@ const AppContent = () => {
                 />
               </div>
               <div>
-                <label htmlFor="contrasena" className="block text-sm font-medium text-[#23475F]">
+                <label
+                  htmlFor="contrasena"
+                  className="block text-sm font-medium text-[#23475F]"
+                >
                   Contraseña
                 </label>
                 <input
@@ -177,10 +201,10 @@ const AppContent = () => {
                 type="submit"
                 disabled={loginLoading}
                 className={`w-full py-2 px-4 bg-[#01CD6C] text-[#FFFFFF] rounded-md hover:bg-[#00b359] focus:outline-none focus:ring-2 focus:ring-[#23475F] ${
-                  loginLoading ? 'opacity-50 cursor-not-allowed' : ''
+                  loginLoading ? "opacity-50 cursor-not-allowed" : ""
                 }`}
               >
-                {loginLoading ? 'Cargando...' : 'Iniciar Sesión'}
+                {loginLoading ? "Cargando..." : "Iniciar Sesión"}
               </button>
             </form>
           </div>
@@ -200,8 +224,12 @@ const AppContent = () => {
               />
             )}
             <div>
-              <h2 className="text-4xl font-bold text-[#0F2634] mb-2">{company.nombre_sistema}</h2>
-              <p className="text-[#23475F] text-lg">Bienvenido a tu panel de control</p>
+              <h2 className="text-4xl font-bold text-[#0F2634] mb-2">
+                {company.nombre_sistema}
+              </h2>
+              <p className="text-[#23475F] text-lg">
+                Bienvenido a tu panel de control
+              </p>
             </div>
           </div>
         </div>
@@ -210,61 +238,107 @@ const AppContent = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           {/* Misión y Visión */}
           <div className="bg-[#FFFFFF] rounded-2xl shadow-sm p-8 border border-[#23475F]/20">
-            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">Misión & Visión</h3>
+            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">
+              Misión & Visión
+            </h3>
             <div className="space-y-6">
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">🎯 Misión:</span>
-                <p className="text-[#23475F] leading-relaxed">{company.mision || 'No proporcionada'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  🎯 Misión:
+                </span>
+                <p className="text-[#23475F] leading-relaxed">
+                  {company.mision || "No proporcionada"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">👁️ Visión:</span>
-                <p className="text-[#23475F] leading-relaxed">{company.vision || 'No proporcionada'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  👁️ Visión:
+                </span>
+                <p className="text-[#23475F] leading-relaxed">
+                  {company.vision || "No proporcionada"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">👥 Quiénes Somos:</span>
-                <p className="text-[#23475F] leading-relaxed">{company.quienes_somos || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  👥 Quiénes Somos:
+                </span>
+                <p className="text-[#23475F] leading-relaxed">
+                  {company.quienes_somos || "No proporcionado"}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Nuestros Objetivos */}
           <div className="bg-[#FFFFFF] rounded-2xl shadow-sm p-8 border border-[#23475F]/20">
-            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">Nuestros Objetivos</h3>
+            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">
+              Nuestros Objetivos
+            </h3>
             <div className="space-y-5">
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">⭐ Objetivo Principal:</span>
-                <p className="text-[#23475F]">{company.nuestro_objetivo || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  ⭐ Objetivo Principal:
+                </span>
+                <p className="text-[#23475F]">
+                  {company.nuestro_objetivo || "No proporcionado"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">✅ Objetivo 1:</span>
-                <p className="text-[#23475F]">{company.objetivo_1 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  ✅ Objetivo 1:
+                </span>
+                <p className="text-[#23475F]">
+                  {company.objetivo_1 || "No proporcionado"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">✅ Objetivo 2:</span>
-                <p className="text-[#23475F]">{company.objetivo_2 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  ✅ Objetivo 2:
+                </span>
+                <p className="text-[#23475F]">
+                  {company.objetivo_2 || "No proporcionado"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">✅ Objetivo 3:</span>
-                <p className="text-[#23475F]">{company.objetivo_3 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  ✅ Objetivo 3:
+                </span>
+                <p className="text-[#23475F]">
+                  {company.objetivo_3 || "No proporcionado"}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Información Adicional */}
           <div className="bg-[#FFFFFF] rounded-2xl shadow-sm p-8 border border-[#23475F]/20">
-            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">Información Adicional</h3>
+            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">
+              Información Adicional
+            </h3>
             <div className="space-y-5">
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">🏷️ Título Principal:</span>
-                <p className="text-[#23475F]">{company.titulo_h1 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  🏷️ Título Principal:
+                </span>
+                <p className="text-[#23475F]">
+                  {company.titulo_h1 || "No proporcionado"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">📝 Descripción:</span>
-                <p className="text-[#23475F]">{company.descripcion_h1 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  📝 Descripción:
+                </span>
+                <p className="text-[#23475F]">
+                  {company.descripcion_h1 || "No proporcionado"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">💫 Te Ofrecemos:</span>
-                <p className="text-[#23475F]">{company.te_ofrecemos || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  💫 Te Ofrecemos:
+                </span>
+                <p className="text-[#23475F]">
+                  {company.te_ofrecemos || "No proporcionado"}
+                </p>
               </div>
             </div>
           </div>
@@ -274,7 +348,9 @@ const AppContent = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           {/* Servicio 1 */}
           <div className="bg-[#FFFFFF] rounded-2xl shadow-sm p-8 border border-[#23475F]/20">
-            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">Servicio 1</h3>
+            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">
+              Servicio 1
+            </h3>
             <div className="space-y-4">
               {company.imagen_1 && (
                 <img
@@ -285,19 +361,29 @@ const AppContent = () => {
                 />
               )}
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">🏷️ Título:</span>
-                <p className="text-[#23475F] font-semibold">{company.titulo_1 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  🏷️ Título:
+                </span>
+                <p className="text-[#23475F] font-semibold">
+                  {company.titulo_1 || "No proporcionado"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">📖 Descripción:</span>
-                <p className="text-[#23475F] leading-relaxed">{company.descripcion_1 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  📖 Descripción:
+                </span>
+                <p className="text-[#23475F] leading-relaxed">
+                  {company.descripcion_1 || "No proporcionado"}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Servicio 2 */}
           <div className="bg-[#FFFFFF] rounded-2xl shadow-sm p-8 border border-[#23475F]/20">
-            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">Servicio 2</h3>
+            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">
+              Servicio 2
+            </h3>
             <div className="space-y-4">
               {company.imagen_2 && (
                 <img
@@ -308,19 +394,29 @@ const AppContent = () => {
                 />
               )}
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">🏷️ Título:</span>
-                <p className="text-[#23475F] font-semibold">{company.titulo_2 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  🏷️ Título:
+                </span>
+                <p className="text-[#23475F] font-semibold">
+                  {company.titulo_2 || "No proporcionado"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">📖 Descripción:</span>
-                <p className="text-[#23475F] leading-relaxed">{company.descripcion_2 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  📖 Descripción:
+                </span>
+                <p className="text-[#23475F] leading-relaxed">
+                  {company.descripcion_2 || "No proporcionado"}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Servicio 3 */}
           <div className="bg-[#FFFFFF] rounded-2xl shadow-sm p-8 border border-[#23475F]/20">
-            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">Servicio 3</h3>
+            <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">
+              Servicio 3
+            </h3>
             <div className="space-y-4">
               {company.imagen_3 && (
                 <img
@@ -331,12 +427,20 @@ const AppContent = () => {
                 />
               )}
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">🏷️ Título:</span>
-                <p className="text-[#23475F] font-semibold">{company.titulo_3 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  🏷️ Título:
+                </span>
+                <p className="text-[#23475F] font-semibold">
+                  {company.titulo_3 || "No proporcionado"}
+                </p>
               </div>
               <div>
-                <span className="text-[#01CD6C] font-medium block mb-2">📖 Descripción:</span>
-                <p className="text-[#23475F] leading-relaxed">{company.descripcion_3 || 'No proporcionado'}</p>
+                <span className="text-[#01CD6C] font-medium block mb-2">
+                  📖 Descripción:
+                </span>
+                <p className="text-[#23475F] leading-relaxed">
+                  {company.descripcion_3 || "No proporcionado"}
+                </p>
               </div>
             </div>
           </div>
@@ -346,7 +450,9 @@ const AppContent = () => {
         {company.imagen_hero && (
           <div className="mb-8">
             <div className="bg-[#FFFFFF] rounded-2xl shadow-sm p-8 border border-[#23475F]/20">
-              <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">Imagen Principal</h3>
+              <h3 className="text-2xl font-semibold text-[#0F2634] mb-6 pb-2 border-b border-[#23475F]/20">
+                Imagen Principal
+              </h3>
               <img
                 src={getImageUrl(company.imagen_hero)}
                 alt="Imagen principal de la empresa"
@@ -361,44 +467,58 @@ const AppContent = () => {
         <footer className="bg-[#0F2634] text-[#FFFFFF] rounded-2xl p-8 mt-8 shadow-sm">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="flex flex-col justify-center">
-              <h4 className="text-2xl font-bold mb-4 text-[#FFFFFF]">{company.nombre_sistema}</h4>
+              <h4 className="text-2xl font-bold mb-4 text-[#FFFFFF]">
+                {company.nombre_sistema}
+              </h4>
               <p className="text-[#01CD6C] mb-2">
-                <span className="font-medium">Administrador:</span> {company.admin_nombre} {company.admin_apellido}
+                <span className="font-medium">Administrador:</span>{" "}
+                {company.admin_nombre} {company.admin_apellido}
               </p>
               <p className="text-[#01CD6C] mb-2">
-                <span className="font-medium">Email Admin:</span> {company.admin_correo || 'No disponible'}
+                <span className="font-medium">Email Admin:</span>{" "}
+                {company.admin_correo || "No disponible"}
               </p>
             </div>
             <div className="flex flex-col justify-center space-y-3">
               <div className="flex items-center">
                 <span className="text-[#01CD6C] mr-3">📧</span>
                 <div>
-                  <p className="text-[#01CD6C] font-medium">Email Corporativo</p>
-                  <p className="text-[#FFFFFF]">{company.correo_empresa || 'No disponible'}</p>
+                  <p className="text-[#01CD6C] font-medium">
+                    Email Corporativo
+                  </p>
+                  <p className="text-[#FFFFFF]">
+                    {company.correo_empresa || "No disponible"}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center">
                 <span className="text-[#01CD6C] mr-3">📞</span>
                 <div>
                   <p className="text-[#01CD6C] font-medium">Teléfono</p>
-                  <p className="text-[#FFFFFF]">{company.telefono || 'No disponible'}</p>
+                  <p className="text-[#FFFFFF]">
+                    {company.telefono || "No disponible"}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center">
                 <span className="text-[#01CD6C] mr-3">📍</span>
                 <div>
                   <p className="text-[#01CD6C] font-medium">Ubicación</p>
-                  <p className="text-[#FFFFFF]">{company.direccion || 'No disponible'}</p>
+                  <p className="text-[#FFFFFF]">
+                    {company.direccion || "No disponible"}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
           <div className="border-t border-[#23475F] mt-8 pt-6 text-center">
             <p className="text-[#01CD6C] text-sm">
-              &copy; {new Date().getFullYear()} {company.nombre_sistema}. Todos los derechos reservados.
+              &copy; {new Date().getFullYear()} {company.nombre_sistema}. Todos
+              los derechos reservados.
             </p>
             <p className="text-[#FFFFFF]/80 text-xs mt-2">
-              Registrado el {new Date(company.fecha_registrado).toLocaleDateString('es-ES')}
+              Registrado el{" "}
+              {new Date(company.fecha_registrado).toLocaleDateString("es-ES")}
             </p>
           </div>
         </footer>
