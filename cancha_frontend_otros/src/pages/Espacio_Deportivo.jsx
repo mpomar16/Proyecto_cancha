@@ -9,40 +9,31 @@ const permissionsConfig = {
 };
 
 const getEffectiveRole = () => {
+  const keys = Object.keys(permissionsConfig);
+  const bag = new Set();
   try {
-    const keys = Object.keys(permissionsConfig);
-    const bag = new Set();
-
     const u = JSON.parse(localStorage.getItem('user') || '{}');
     const arr = Array.isArray(u?.roles) ? u.roles : [];
     for (const r of arr) {
       if (typeof r === 'string') bag.add(r);
-      else if (r && typeof r === 'object') ['rol','role','nombre','name'].forEach(k => { if (r[k]) bag.add(r[k]); });
+      else if (r && typeof r === 'object') ['rol', 'role', 'nombre', 'name'].forEach(k => { if (r[k]) bag.add(r[k]); });
     }
     if (bag.size === 0 && u?.role) bag.add(u.role);
-
-    const tok = localStorage.getItem('token');
-    if (bag.size === 0 && tok && tok.split('.').length === 3) {
-      try {
-        const b = tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-        const pad = '='.repeat((4 - (b.length % 4)) % 4);
-        const payload = JSON.parse(atob(b + pad));
-        const t = Array.isArray(payload?.roles) ? payload.roles : (payload?.rol ? [payload.rol] : []);
-        t.forEach(v => bag.add(v));
-      } catch {}
-    }
-
-    const norm = Array.from(bag).map(v => String(v || '').trim().toUpperCase().replace(/\s+/g,'_'));
-    const map = v => v === 'ADMIN' ? 'ADMINISTRADOR' : v;
-    const norm2 = norm.map(map);
-    const prio = ['ADMINISTRADOR','ADMIN_ESP_DEP'];
-    const pick = prio.find(r => norm2.includes(r) && keys.includes(r)) || norm2.find(r => keys.includes(r)) || 'DEFAULT';
-    return pick || 'DEFAULT';
-  } catch {
-    return 'DEFAULT';
+  } catch { }
+  const tok = localStorage.getItem('token');
+  if (bag.size === 0 && tok && tok.split('.').length === 3) {
+    try {
+      const payload = JSON.parse(atob(tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      const t = Array.isArray(payload?.roles) ? payload.roles : (payload?.rol ? [payload.rol] : []);
+      t.forEach(v => bag.add(v));
+    } catch { }
   }
+  const norm = Array.from(bag).map(v => String(v || '').trim().toUpperCase().replace(/\s+/g, '_'));
+  const map = v => v === 'ADMIN' ? 'ADMINISTRADOR' : v;
+  const norm2 = norm.map(map);
+  const prio = ['ADMINISTRADOR', 'ADMIN_ESP_DEP'];
+  return prio.find(r => norm2.includes(r) && keys.includes(r)) || norm2.find(r => keys.includes(r)) || 'DEFAULT';
 };
-
 
 const EspacioDeportivo = () => {
   const [espacios, setEspacios] = useState([]);
@@ -73,7 +64,7 @@ const EspacioDeportivo = () => {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 10;
-  const [role, setRole] = useState('DEFAULT');
+  const [role, setRole] = useState(() => getEffectiveRole());
 
   const [selectedFiles, setSelectedFiles] = useState({
     imagen_principal: null,
@@ -104,7 +95,7 @@ const EspacioDeportivo = () => {
 
   useEffect(() => { setError(null); }, [role]);
 
-  const permissions = permissionsConfig[role] || permissionsConfig.DEFAULT;
+  const permissions = role && permissionsConfig[role] ? permissionsConfig[role] : permissionsConfig.DEFAULT;
 
   useEffect(() => {
     const fetchAdministradores = async () => {
@@ -399,7 +390,7 @@ const EspacioDeportivo = () => {
     if (newPage >= 1 && newPage <= Math.ceil(total / limit)) setPage(newPage);
   };
 
-  if (role == null) return <p>Cargando permisos...</p>;
+  if (!role) return <p>Cargando permisos...</p>;
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
