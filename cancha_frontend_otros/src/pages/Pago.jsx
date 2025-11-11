@@ -74,7 +74,7 @@ const Pago = () => {
   useEffect(() => {
     const fetchReservas = async () => {
       try {
-        const response = await api.get('/reserva/datos-especificos');
+        const response = await api.get('/reserva/activas');
         if (response.data?.exito) setReservas(response.data.datos.reservas || []);
         else setError(response.data?.mensaje || 'Error al obtener reservas');
       } catch (err) {

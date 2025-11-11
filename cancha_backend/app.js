@@ -31,6 +31,9 @@ const cancha_casualRoutes = require('./api/casual/cancha-casual');
 // rutas según roles ya definidos
 const espacio_adminRoutes = require('./api/roles/espacio_admin');
 const cancha_adminRoutes = require('./api/roles/cancha_admin');
+const reserva_adminRoutes = require('./api/roles/reserva_admin');
+const reserva_horario_adminRoutes = require('./api/roles/reserva_horario_admin');
+const resena_adminRoutes = require('./api/roles/resena_admin');
 const qr_controlRoutes = require('./api/roles/qr_control');
 const reporte_encargadoRoutes = require('./api/roles/reporte_encargado');
 const resena_clienteRoutes = require('./api/roles/resena_cliente');
@@ -79,6 +82,9 @@ try {
   // ubicacion según roles ya definidos
   app.use('/espacio-admin', espacio_adminRoutes);
   app.use('/cancha-admin', cancha_adminRoutes);
+  app.use('/reserva-admin', reserva_adminRoutes);
+  app.use('/reserva-horario-admin', reserva_horario_adminRoutes);
+  app.use('/resena-admin', resena_adminRoutes);
   app.use('/qr-control', qr_controlRoutes);
   app.use('/reporte-encargado', reporte_encargadoRoutes);
   app.use('/resena-cliente', resena_clienteRoutes);

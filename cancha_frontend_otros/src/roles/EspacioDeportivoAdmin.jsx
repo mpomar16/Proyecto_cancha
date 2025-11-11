@@ -164,7 +164,7 @@ const EspacioDeportivoAdmin = () => {
     else fetchEspacios();
   };
 
-  const handleDelete = async (id) => {
+  /*const handleDelete = async (id) => {
     if (!permissions.canDelete) return;
     if (!window.confirm('Estas seguro de eliminar este espacio?')) return;
     try {
@@ -212,7 +212,7 @@ const EspacioDeportivoAdmin = () => {
     });
     setCurrentEspacio(null);
     setModalOpen(true);
-  };
+  };*/
 
   const openEditModal = async (id) => {
     if (!permissions.canEdit) return;
@@ -339,40 +339,68 @@ const EspacioDeportivoAdmin = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (viewMode || (!permissions.canCreate && !editMode) || (!permissions.canEdit && editMode)) return;
-    try {
-      const data = new FormData();
-      const filtered = Object.fromEntries(
-        Object.entries(formData).filter(([k, v]) => {
-          const req = ['nombre', 'id_admin_esp_dep'];
-          if (req.includes(k)) return true;
-          return v !== '' && v !== null && v !== undefined;
-        })
+  e.preventDefault();
+  if (viewMode || (!permissions.canCreate && !editMode) || (!permissions.canEdit && editMode)) return;
+
+  try {
+    const data = new FormData();
+
+    const filtered = Object.fromEntries(
+      Object.entries(formData).filter(([k, v]) => {
+        const req = ['nombre', 'id_admin_esp_dep'];
+        if (req.includes(k)) return true;
+        return v !== '' && v !== null && v !== undefined;
+      })
+    );
+
+    Object.entries(filtered).forEach(([k, v]) => {
+      if (!['imagen_principal','imagen_sec_1','imagen_sec_2','imagen_sec_3','imagen_sec_4'].includes(k))
+        data.append(k, v);
+    });
+
+    ['imagen_principal','imagen_sec_1','imagen_sec_2','imagen_sec_3','imagen_sec_4'].forEach(f => {
+      if (imageFiles[f]) data.append(f, imageFiles[f]);
+    });
+
+    // Validaciones
+    if (filtered.nombre && filtered.nombre.length > 100) { setError('Nombre muy largo'); return; }
+    if (filtered.direccion && filtered.direccion.length > 255) { setError('Direccion muy larga'); return; }
+    if (filtered.latitud && (isNaN(filtered.latitud) || filtered.latitud < -90 || filtered.latitud > 90)) { setError('Latitud fuera de rango'); return; }
+    if (filtered.longitud && (isNaN(filtered.longitud) || filtered.longitud < -180 || filtered.longitud > 180)) { setError('Longitud fuera de rango'); return; }
+    const vHora = (h) => /^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(h);
+    if (filtered.horario_apertura && !vHora(filtered.horario_apertura)) { setError('Hora apertura invalida'); return; }
+    if (filtered.horario_cierre && !vHora(filtered.horario_cierre)) { setError('Hora cierre invalida'); return; }
+
+    const cfg = { headers: { 'Content-Type': 'multipart/form-data' } };
+
+    let resp;
+    if (editMode) {
+      // ✅ enviamos id_admin_esp_dep como query param
+      resp = await api.patch(
+        `/espacio-admin/${currentEspacio.id_espacio}`,
+        data,
+        {
+          ...cfg,
+          params: { id_admin_esp_dep: idAdminEspDep }
+        }
       );
-      Object.entries(filtered).forEach(([k, v]) => {
-        if (!['imagen_principal','imagen_sec_1','imagen_sec_2','imagen_sec_3','imagen_sec_4'].includes(k)) data.append(k, v);
-      });
-      ['imagen_principal','imagen_sec_1','imagen_sec_2','imagen_sec_3','imagen_sec_4'].forEach(f => {
-        if (imageFiles[f]) data.append(f, imageFiles[f]);
-      });
-      if (filtered.nombre && filtered.nombre.length > 100) { setError('Nombre muy largo'); return; }
-      if (filtered.direccion && filtered.direccion.length > 255) { setError('Direccion muy larga'); return; }
-      if (filtered.latitud && (isNaN(filtered.latitud) || filtered.latitud < -90 || filtered.latitud > 90)) { setError('Latitud fuera de rango'); return; }
-      if (filtered.longitud && (isNaN(filtered.longitud) || filtered.longitud < -180 || filtered.longitud > 180)) { setError('Longitud fuera de rango'); return; }
-      const vHora = (h) => /^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(h);
-      if (filtered.horario_apertura && !vHora(filtered.horario_apertura)) { setError('Hora apertura invalida'); return; }
-      if (filtered.horario_cierre && !vHora(filtered.horario_cierre)) { setError('Hora cierre invalida'); return; }
-      const cfg = { headers: { 'Content-Type': 'multipart/form-data' } };
-      let resp;
-      if (editMode) resp = await api.patch(`/espacio-admin/${currentEspacio.id_espacio}`, data, cfg);
-      else resp = await api.post('/espacio-admin/', data, cfg);
-      if (resp.data?.exito) { closeModal(); fetchEspacios(); }
-      else setError(resp.data?.mensaje || 'No se pudo guardar');
-    } catch (err) {
-      setError(err.response?.data?.mensaje || err.message || 'Error de conexion');
+    } else {
+      // POST no necesita query param, ya va en el body/formData
+      data.append('id_admin_esp_dep', idAdminEspDep);
+      resp = await api.post('/espacio-admin/', data, cfg);
     }
-  };
+
+    if (resp.data?.exito) {
+      closeModal();
+      fetchEspacios();
+    } else {
+      setError(resp.data?.mensaje || 'No se pudo guardar');
+    }
+  } catch (err) {
+    setError(err.response?.data?.mensaje || err.message || 'Error de conexion');
+  }
+};
+
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= Math.ceil(total / limit)) setPage(newPage);
@@ -414,15 +442,6 @@ const EspacioDeportivoAdmin = () => {
             <option value="direccion">Por direccion</option>
             <option value="admin_nombre">Por administrador</option>
           </select>
-
-          {permissions.canCreate && (
-            <button
-              onClick={openCreateModal}
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 whitespace-nowrap sm:w-auto w-full"
-            >
-              Crear espacio
-            </button>
-          )}
         </div>
       </div>
 
@@ -471,14 +490,6 @@ const EspacioDeportivoAdmin = () => {
                           className="text-blue-500 hover:text-blue-700 mr-2"
                         >
                           Editar
-                        </button>
-                      )}
-                      {permissions.canDelete && (
-                        <button
-                          onClick={() => handleDelete(e.id_espacio)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          Eliminar
                         </button>
                       )}
                     </td>

@@ -26,6 +26,11 @@ import QRControl from './roles/QRControl';
 import ReporteEncargado from './roles/ReporteEncargado';
 import EspacioDeportivoAdmin from './roles/EspacioDeportivoAdmin';
 import CanchaAdmin from './roles/CanchaAdmin';
+import ReservaAdmin from './roles/ReservaAdmin';
+import Reserva_HorarioAdmin from './roles/Reserva_HorarioAdmin';
+import ResenaAdmin from './roles/ResenaAdmin';
+import EspaciosView from './roles/EspaciosView';
+import CalendarioReservasAdmin from './roles/CalendarioReservasAdmin';
 
 // Configuración de rutas para cada rol
 const roleRoutesConfig = {
@@ -52,12 +57,14 @@ const roleRoutesConfig = {
     { id: 'participa_en', label: 'Participa En', icon: '👥', path: 'participa-en', component: Participa_En },
   ],
   ADMIN_ESP_DEP: [
+    { id: 'estadisticas', label: 'Estadisticas', icon: '📊', path: 'estadisticas', component: EspaciosView },
+    { id: 'calendario', label: 'Calendario', icon: '📆', path: 'calendario', component: CalendarioReservasAdmin },
     { id: 'espacio_deportivo', label: 'Espacio Deportivo', icon: '🏟️', path: 'espacio-deportivo', component: EspacioDeportivoAdmin },
     { id: 'cancha', label: 'Cancha', icon: '🎾', path: 'cancha', component: CanchaAdmin },
+    { id: 'reserva', label: 'Reserva', icon: '📅', path: 'reserva', component: ReservaAdmin },
+    { id: 'reserva_horario', label: 'Reserva Horario', icon: '⏰', path: 'reserva-horario', component: Reserva_HorarioAdmin },
+    { id: 'resena', label: 'Reseña', icon: '⭐', path: 'resena', component: ResenaAdmin },
     { id: 'disciplina', label: 'Disciplina', icon: '🥋', path: 'disciplina', component: Disciplina },
-    { id: 'reserva', label: 'Reserva', icon: '📅', path: 'reserva', component: Reserva },
-    { id: 'reserva_horario', label: 'Reserva Horario', icon: '⏰', path: 'reserva-horario', component: Reserva_Horario },
-    { id: 'resena', label: 'Reseña', icon: '⭐', path: 'resena', component: Resena },
   ],
   CONTROL: [
     { id: 'qr_reserva', label: 'QR Reserva', icon: '📱', path: 'qr-reserva', component: QR_Reserva },
@@ -116,6 +123,14 @@ const Header = ({ title, toggleSidebar, isSidebarOpen }) => {
   );
 };
 
+  const getMainRole = (user) => {
+    if (!user) return null;
+    if (Array.isArray(user.roles)) {
+      return user.roles.find(r => String(r?.rol ?? r).toUpperCase() === 'ADMIN_ESP_DEP') ? 'ADMIN_ESP_DEP' : null;
+    }
+    return String(user.role || '').toUpperCase() === 'ADMIN_ESP_DEP' ? 'ADMIN_ESP_DEP' : null;
+  };
+
 const Sidebar = ({ routes, onPageChange, currentPage, onLogout, user, isSidebarOpen, toggleSidebar }) => {
   return (
     <div className={`fixed inset-y-0 left-0 w-64 bg-white shadow-lg overflow-y-auto transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50`}>
@@ -135,6 +150,17 @@ const Sidebar = ({ routes, onPageChange, currentPage, onLogout, user, isSidebarO
             </svg>
             Cerrar Sesión
           </button>
+          {getMainRole(user) === 'ADMIN_ESP_DEP' && (
+            <button
+              onClick={() => window.location.href = '/'} // o la ruta que quieras (por ejemplo '/cliente' o '/home')
+              className="w-full text-[#23475F] hover:text-[#01CD6C] text-sm font-medium flex items-center mt-3"
+            >
+              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A9 9 0 0112 15a9 9 0 016.879 2.804M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Volver a Vista Cliente
+            </button>
+          )}
         </div>
         <button
           className="text-[#23475F] hover:text-[#01CD6C] focus:outline-none"

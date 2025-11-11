@@ -1,0 +1,571 @@
+/* eslint-disable no-empty */
+/* eslint-disable no-unused-vars */
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import api from '../services/api';
+
+const norm = (v) => String(v || '').trim().toUpperCase().replace(/\s+/g, '_');
+
+const readUser = () => {
+  try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
+};
+
+const readTokenPayload = () => {
+  try {
+    const t = localStorage.getItem('token');
+    if (!t || t.split('.').length !== 3) return {};
+    const b = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const pad = '='.repeat((4 - (b.length % 4)) % 4);
+    return JSON.parse(atob(b + pad));
+  } catch { return {}; }
+};
+
+const pickRole = (u, p) => {
+  const bag = new Set();
+  const arr = Array.isArray(u?.roles) ? u.roles : (u?.role ? [u.role] : []);
+  arr.forEach(r => bag.add(norm(typeof r === 'string' ? r : r?.rol || r?.role || r?.nombre || r?.name)));
+  const parr = Array.isArray(p?.roles) ? p.roles : (p?.rol ? [p.rol] : []);
+  parr.forEach(r => bag.add(norm(r)));
+  const list = Array.from(bag);
+  if (list.includes('ADMIN_ESP_DEP')) return 'ADMIN_ESP_DEP';
+  if (list.includes('ADMIN') || list.includes('ADMINISTRADOR')) return 'ADMINISTRADOR';
+  return list[0] || 'DEFAULT';
+};
+
+const resolveAdminId = (u, p) => {
+  if (Number.isInteger(u?.id_admin_esp_dep)) return u.id_admin_esp_dep;
+  if (Number.isInteger(u?.id_persona)) return u.id_persona;
+  if (Number.isInteger(u?.id)) return u.id;
+  if (Number.isInteger(u?.persona?.id_persona)) return u.persona.id_persona;
+  if (Number.isInteger(p?.id_admin_esp_dep)) return p.id_admin_esp_dep;
+  if (Number.isInteger(p?.id_persona)) return p.id_persona;
+  if (Number.isInteger(p?.id)) return p.id;
+  return null;
+};
+
+const permissionsConfig = {
+  ADMINISTRADOR: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+  ADMIN_ESP_DEP: { canView: true, canCreate: true, canEdit: true, canDelete: true },
+  DEFAULT: { canView: false, canCreate: false, canEdit: false, canDelete: false },
+};
+
+const ReservaAdmin = () => {
+  const [role, setRole] = useState(null);
+  const [idAdminEspDep, setIdAdminEspDep] = useState(null);
+
+  const [reservas, setReservas] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [canchas, setCanchas] = useState([]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filtro, setFiltro] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 10;
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [viewMode, setViewMode] = useState(false);
+  const [currentReserva, setCurrentReserva] = useState(null);
+
+  const [formData, setFormData] = useState({
+    fecha_reserva: '',
+    cupo: '',
+    monto_total: '',
+    saldo_pendiente: '',
+    estado: 'pendiente',
+    id_cliente: '',
+    id_cancha: ''
+  });
+
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const canchaId = params.get('cancha'); // 👈 Obtiene el id_cancha desde la URL si existe
+  const idReserva = params.get('id_reserva');
+
+  useEffect(() => {
+    const u = readUser();
+    const p = readTokenPayload();
+    const r = pickRole(u, p);
+    setRole(r);
+    const idGuess = resolveAdminId(u, p);
+    setIdAdminEspDep(r === 'ADMIN_ESP_DEP' ? idGuess : null);
+  }, []);
+
+  const permissions = permissionsConfig[role || 'DEFAULT'] || permissionsConfig.DEFAULT;
+
+  useEffect(() => {
+    const fetchClientes = async () => {
+      try {
+        const res = await api.get('/cliente/datos-especificos');
+        if (res.data?.exito) setClientes(res.data.datos.clientes || []);
+      } catch (e) { setError('Error al cargar clientes'); }
+    };
+
+    const fetchCanchas = async () => {
+      if (!idAdminEspDep) return;
+      try {
+        const res = await api.get('/cancha-admin/datos-especificos', { params: { id_admin_esp_dep: idAdminEspDep } });
+        if (res.data?.exito) setCanchas(res.data.datos.canchas || []);
+      } catch (e) { setError('Error al cargar canchas'); }
+    };
+
+    if (permissions.canView) {
+      fetchClientes();
+      fetchCanchas();
+    }
+  }, [role, idAdminEspDep]);
+
+  const fetchReservas = async (params = {}) => {
+  if (!permissions.canView) { setError('No tienes permisos para ver'); return; }
+  setLoading(true);
+  setError(null);
+  const offset = (page - 1) * limit;
+  const fullParams = { ...params, limit, offset };
+
+  try {
+    if (!idAdminEspDep) {
+      setError('No se detectó id_admin_esp_dep del usuario actual');
+      setLoading(false);
+      return;
+    }
+
+    let resp;
+    // 🔹 Buscar
+    if (params.q) {
+      resp = await api.get('/reserva-admin/buscar', { 
+        params: { ...fullParams, id_admin_esp_dep: idAdminEspDep } 
+      });
+    }
+    // 🔹 Filtrar
+    else if (params.tipo) {
+      resp = await api.get('/reserva-admin/filtro', { 
+        params: { ...fullParams, id_admin_esp_dep: idAdminEspDep } 
+      });
+    }
+    // 🔹 Datos normales
+    else {
+      resp = await api.get('/reserva-admin/datos-especificos', { 
+        params: { ...fullParams, id_admin_esp_dep: idAdminEspDep, id_cancha: canchaId || undefined }
+      });
+    }
+
+    if (resp.data?.exito) {
+      setReservas(resp.data.datos.reservas || []);
+      setTotal(resp.data.datos.paginacion?.total || 0);
+    } else {
+      setError(resp.data?.mensaje || 'Error al cargar reservas');
+    }
+  } catch (e) {
+    setError(e.response?.data?.mensaje || 'Error de conexion');
+  } finally {
+    setLoading(false);
+  }
+};
+
+  useEffect(() => {
+  if (!role || !idAdminEspDep) return;
+
+  if (idReserva) {
+    // Si hay id_reserva en la URL, cargar solo esa
+    api.get(`/reserva-admin/dato-individual/${idReserva}`, {
+      params: { id_admin_esp_dep: idAdminEspDep }
+    })
+    .then(r => {
+      if (r.data?.exito) {
+        setReservas([r.data.datos.reserva]);
+        setTotal(1);
+      } else {
+        setReservas([]);
+        setError('No se encontró la reserva');
+      }
+    })
+    .catch(() => setError('Error de conexión al servidor'));
+  } else {
+    // Si no hay id_reserva, carga normalmente (por cancha o todas)
+    fetchReservas({ id_cancha: canchaId });
+  }
+}, [role, idAdminEspDep, page, canchaId, idReserva]);
+
+const handleSearch = (e) => {
+  e.preventDefault();
+  setPage(1);
+  const baseParams = canchaId ? { id_cancha: canchaId } : {};
+  if (searchTerm.trim()) fetchReservas({ q: searchTerm, ...baseParams });
+  else fetchReservas(baseParams);
+};
+
+
+const handleFiltroChange = (e) => {
+  const tipo = e.target.value;
+  setFiltro(tipo);
+  setPage(1);
+  const baseParams = canchaId ? { id_cancha: canchaId } : {};
+  if (tipo) fetchReservas({ tipo, ...baseParams });
+  else fetchReservas(baseParams);
+};
+
+
+  const openCreateModal = () => {
+    setEditMode(false);
+    setViewMode(false);
+    setFormData({
+      fecha_reserva: '',
+      cupo: '',
+      monto_total: '',
+      saldo_pendiente: '',
+      estado: 'pendiente',
+      id_cliente: '',
+      id_cancha: ''
+    });
+    setCurrentReserva(null);
+    setModalOpen(true);
+  };
+
+  const openEditModal = async (id) => {
+    if (!permissions.canEdit) return;
+    try {
+      const response = await api.get(`/reserva-admin/dato-individual/${id}`, {
+        params: { id_admin_esp_dep: idAdminEspDep }, // 👈 importante
+      });
+
+      if (response.data?.exito) {
+        const r = response.data.datos.reserva;
+        setFormData({
+          fecha_reserva: r.fecha_reserva
+            ? new Date(r.fecha_reserva).toISOString().split('T')[0]
+            : '',
+          cupo: r.cupo || '',
+          monto_total: r.monto_total || '',
+          saldo_pendiente: r.saldo_pendiente || '',
+          estado: r.estado || 'pendiente',
+          id_cliente: r.id_cliente ? String(r.id_cliente) : '',
+          id_cancha: r.id_cancha ? String(r.id_cancha) : ''
+        });
+        setCurrentReserva(r);
+        setEditMode(true);
+        setViewMode(false);
+        setModalOpen(true);
+      } else {
+        setError(response.data?.mensaje || 'No se pudo cargar la reserva');
+      }
+    } catch (err) {
+      setError(err.response?.data?.mensaje || 'Error de conexion al servidor');
+    }
+  };
+
+
+  const openViewModal = async (id) => {
+    if (!permissions.canView) return;
+    try {
+      const response = await api.get(`/reserva-admin/dato-individual/${id}`, {
+        params: { id_admin_esp_dep: idAdminEspDep },
+      });
+      if (response.data?.exito) {
+        const r = response.data.datos.reserva;
+        setFormData({
+          fecha_reserva: r.fecha_reserva ? new Date(r.fecha_reserva).toISOString().split('T')[0] : '',
+          cupo: r.cupo || '',
+          monto_total: r.monto_total || '',
+          saldo_pendiente: r.saldo_pendiente || '',
+          estado: r.estado || 'pendiente',
+          id_cliente: r.id_cliente ? String(r.id_cliente) : '',
+          id_cancha: r.id_cancha ? String(r.id_cancha) : ''
+        });
+        setCurrentReserva(r);
+        setEditMode(false);
+        setViewMode(true);
+        setModalOpen(true);
+      } else {
+        setError(response.data?.mensaje || 'No se pudo cargar la reserva');
+      }
+    } catch (err) {
+      setError(err.response?.data?.mensaje || 'Error de conexion al servidor');
+    }
+  };
+
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const data = {
+        fecha_reserva: formData.fecha_reserva,
+        estado: formData.estado,
+        id_cliente: parseInt(formData.id_cliente),
+        id_cancha: parseInt(formData.id_cancha),
+        cupo: formData.cupo ? parseInt(formData.cupo) : null,
+        monto_total: formData.monto_total ? parseFloat(formData.monto_total) : null,
+        saldo_pendiente: formData.saldo_pendiente ? parseFloat(formData.saldo_pendiente) : null
+      };
+
+      if (!data.fecha_reserva || isNaN(data.id_cliente) || isNaN(data.id_cancha)) {
+        setError('Faltan campos obligatorios o inválidos');
+        return;
+      }
+
+      let resp;
+      if (editMode) {
+        // ✅ enviar id_admin_esp_dep en la query, no en el body
+        resp = await api.patch(
+          `/reserva-admin/${currentReserva.id_reserva}`,
+          data,
+          { params: { id_admin_esp_dep: idAdminEspDep } } // 👈 clave
+        );
+      } else {
+        // ✅ Enviar id_admin_esp_dep dentro del body
+        resp = await api.post('/reserva-admin/', { ...data, id_admin_esp_dep: idAdminEspDep });
+      }
+
+      if (resp.data?.exito) {
+        setModalOpen(false);
+        fetchReservas();
+      } else {
+        setError(resp.data?.mensaje || 'Error al guardar');
+      }
+    } catch (e) {
+      setError(e.response?.data?.mensaje || 'Error de conexión con el servidor');
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('¿Eliminar reserva?')) return;
+    try {
+      const r = await api.delete(`/reserva-admin/${id}`);
+      if (r.data?.exito) fetchReservas();
+      else setError(r.data?.mensaje || 'No se pudo eliminar');
+    } catch (e) { setError('Error de conexion'); }
+  };
+
+  if (!role || (role === 'ADMIN_ESP_DEP' && !idAdminEspDep)) return <p>Cargando permisos...</p>;
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h2 className="text-xl font-semibold mb-4">
+  {idReserva ? `Detalle de la Reserva #${idReserva}` : 'Gestión de Reservas'}
+</h2>
+
+      <div className="flex flex-col xl:flex-row gap-4 mb-6 items-stretch">
+        <div className="flex-1">
+          <form onSubmit={handleSearch} className="flex h-full">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por cliente o cancha"
+              className="border rounded-l px-4 py-2 w-full"
+            />
+            <button
+              type="submit"
+              className="bg-blue-500 text-white px-4 py-2 rounded-r hover:bg-blue-600 whitespace-nowrap"
+            >
+              Buscar
+            </button>
+          </form>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <select
+            value={filtro}
+            onChange={handleFiltroChange}
+            className="border rounded px-3 py-2 flex-1 sm:min-w-[180px]"
+          >
+            <option value="">Sin filtro</option>
+            <option value="fecha">Fecha</option>
+            <option value="monto">Monto</option>
+            <option value="estado">Estado</option>
+          </select>
+          <button
+            onClick={openCreateModal}
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 whitespace-nowrap"
+          >
+            Crear reserva
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <p>Cargando reservas...</p>
+      ) : error ? (
+        <p className="text-red-500">{error}</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="min-w-full table-auto border-collapse">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-4 py-2 text-left">#</th>
+                  <th className="px-4 py-2 text-left">Cliente</th>
+                  <th className="px-4 py-2 text-left">Cancha</th>
+                  <th className="px-4 py-2 text-left">Fecha</th>
+                  <th className="px-4 py-2 text-left">Monto</th>
+                  <th className="px-4 py-2 text-left">Saldo</th>
+                  <th className="px-4 py-2 text-left">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reservas.map((r, i) => (
+                  <tr key={r.id_reserva} className="border-t">
+                    <td className="px-4 py-2">{(page - 1) * limit + i + 1}</td>
+                    <td className="px-4 py-2">{`${r.cliente_nombre} ${r.cliente_apellido}`}</td>
+                    <td className="px-4 py-2">{r.cancha_nombre}</td>
+                    <td className="px-4 py-2">{new Date(r.fecha_reserva).toLocaleDateString()}</td>
+                    <td className="px-4 py-2">{r.monto_total ? `$${r.monto_total}` : '-'}</td>
+                    <td className="px-4 py-2">{r.saldo_pendiente ? `$${r.saldo_pendiente}` : '-'}</td>
+                    <td className="px-4 py-2 flex gap-2">
+                      <button onClick={() => openViewModal(r.id_reserva)} className="text-green-500 hover:text-green-700">Ver</button>
+                      <button onClick={() => openEditModal(r.id_reserva)} className="text-blue-500 hover:text-blue-700">Editar</button>
+                      <button onClick={() => handleDelete(r.id_reserva)} className="text-red-500 hover:text-red-700">Eliminar</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <h3 className="text-xl font-semibold mb-4">
+              {viewMode ? 'Ver reserva' : editMode ? 'Editar reserva' : 'Crear reserva'}
+            </h3>
+            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Cliente</label>
+                <select
+                  name="id_cliente"
+                  value={String(formData.id_cliente || '')}
+                  onChange={handleInputChange}
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                  required
+                  disabled={viewMode}
+                >
+                  <option value="">Seleccione un cliente</option>
+                  {clientes.map(c => (
+                    <option key={c.id_cliente} value={String(c.id_cliente)}>
+                      {c.nombre} {c.apellido}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Cancha</label>
+                <select
+                  name="id_cancha"
+                  value={String(formData.id_cancha || '')}
+                  onChange={handleInputChange}
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                  required
+                  disabled={viewMode}
+                >
+                  <option value="">Seleccione una cancha</option>
+                  {canchas.map(ca => (
+                    <option key={ca.id_cancha} value={String(ca.id_cancha)}>
+                      {ca.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Fecha</label>
+                <input
+                  name="fecha_reserva"
+                  value={formData.fecha_reserva}
+                  onChange={handleInputChange}
+                  type="date"
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                  disabled={viewMode}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Cupo</label>
+                <input
+                  name="cupo"
+                  value={formData.cupo}
+                  onChange={handleInputChange}
+                  type="number"
+                  min="0"
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                  disabled={viewMode}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Monto total</label>
+                <input
+                  name="monto_total"
+                  value={formData.monto_total}
+                  onChange={handleInputChange}
+                  type="number"
+                  step="0.01"
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                  disabled={viewMode}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Saldo pendiente</label>
+                <input
+                  name="saldo_pendiente"
+                  value={formData.saldo_pendiente}
+                  onChange={handleInputChange}
+                  type="number"
+                  step="0.01"
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                  disabled={viewMode}
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-1">Estado</label>
+                <select
+                  name="estado"
+                  value={formData.estado}
+                  onChange={handleInputChange}
+                  className="w-full border rounded px-3 py-2 bg-gray-100"
+                  disabled={viewMode}
+                >
+                  <option value="pendiente">Pendiente</option>
+                  <option value="pagada">Pagada</option>
+                  <option value="en_cuotas">En cuotas</option>
+                  <option value="cancelada">Cancelada</option>
+                </select>
+              </div>
+
+              <div className="col-span-2 flex justify-end mt-4">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600"
+                >
+                  Cerrar
+                </button>
+                {!viewMode && (
+                  <button
+                    type="submit"
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                  >
+                    {editMode ? 'Actualizar' : 'Crear'}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ReservaAdmin;

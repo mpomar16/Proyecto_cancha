@@ -333,6 +333,78 @@ const eliminarEspacio = async (id, id_admin_esp_dep) => {
 };
 
 // CONTROLADORES - Manejan las request y response
+/**
+ * Obtener todos los espacios de un admin con sus canchas y disciplinas
+ */
+const obtenerEspaciosConCanchasController = async (req, res) => {
+  try {
+    const id_admin_esp_dep = parseInt(req.query.id_admin_esp_dep);
+    if (!id_admin_esp_dep || isNaN(id_admin_esp_dep)) {
+      return res.status(400).json(respuesta(false, 'ID de administrador no válido o no proporcionado'));
+    }
+
+    // 1️⃣ Obtener todos los espacios del admin
+    const qEspacios = `
+      SELECT id_espacio, nombre, direccion, descripcion, horario_apertura, horario_cierre
+      FROM espacio_deportivo
+      WHERE id_admin_esp_dep = $1
+      ORDER BY nombre
+    `;
+    const rEspacios = await pool.query(qEspacios, [id_admin_esp_dep]);
+    const espacios = rEspacios.rows;
+
+    if (espacios.length === 0) {
+      return res.json(respuesta(true, 'No se encontraron espacios para este administrador', { espacios: [] }));
+    }
+
+    // 2️⃣ Obtener canchas de todos los espacios
+    const qCanchas = `
+      SELECT c.id_cancha, c.nombre, c.capacidad, c.estado, c.monto_por_hora, c.id_espacio
+      FROM cancha c
+      JOIN espacio_deportivo e ON c.id_espacio = e.id_espacio
+      WHERE e.id_admin_esp_dep = $1
+      ORDER BY c.nombre
+    `;
+    const rCanchas = await pool.query(qCanchas, [id_admin_esp_dep]);
+    const canchas = rCanchas.rows;
+
+    // 3️⃣ Obtener disciplinas asociadas a esas canchas
+    const idsCanchas = canchas.map(c => c.id_cancha);
+    let disciplinas = [];
+    if (idsCanchas.length > 0) {
+      const qDisciplinas = `
+        SELECT sp.id_cancha, d.nombre
+        FROM se_practica sp
+        JOIN disciplina d ON sp.id_disciplina = d.id_disciplina
+        WHERE sp.id_cancha = ANY($1)
+      `;
+      const rDisc = await pool.query(qDisciplinas, [idsCanchas]);
+      disciplinas = rDisc.rows;
+    }
+
+    // 4️⃣ Armar estructura anidada: espacio -> canchas -> disciplinas
+    const espaciosCompletos = espacios.map(e => {
+      const canchasDeEspacio = canchas
+        .filter(c => c.id_espacio === e.id_espacio)
+        .map(c => ({
+          ...c,
+          disciplinas: disciplinas
+            .filter(d => d.id_cancha === c.id_cancha)
+            .map(d => d.nombre)
+        }));
+      return {
+        ...e,
+        total_canchas: canchasDeEspacio.length,
+        canchas: canchasDeEspacio
+      };
+    });
+
+    return res.json(respuesta(true, 'Espacios con canchas obtenidos correctamente', { espacios: espaciosCompletos }));
+  } catch (error) {
+    console.error('Error en obtenerEspaciosConCanchasController:', error.message);
+    res.status(500).json(respuesta(false, error.message));
+  }
+};
 
 /**
  * Controlador para GET /datos-especificos
@@ -520,24 +592,34 @@ const actualizarEspacioController = async (req, res) => {
 
   try {
     const { id } = req.params;
-    const espacioActual = await obtenerEspacioPorId(parseInt(id), parseInt(req.body.id_admin_esp_dep || req.query.id_admin_esp_dep));
+
+    // ✅ Extraer id_admin_esp_dep correctamente (desde query o body)
+    const id_admin_esp_dep = parseInt(req.query.id_admin_esp_dep || req.body.id_admin_esp_dep);
 
     if (!id || isNaN(id)) {
-      return res.status(400).json(respuesta(false, 'ID de espacio deportivo no válido'));
+      return res.status(400).json(respuesta(false, "ID de espacio deportivo no válido"));
     }
 
+    if (!id_admin_esp_dep || isNaN(id_admin_esp_dep)) {
+      return res.status(400).json(respuesta(false, "id_admin_esp_dep es requerido y debe ser numérico"));
+    }
+
+    // ✅ Buscar el espacio verificando pertenencia al administrador
+    const espacioActual = await obtenerEspacioPorId(parseInt(id), id_admin_esp_dep);
     if (!espacioActual) {
-      return res.status(404).json(respuesta(false, 'Espacio deportivo no encontrado o no pertenece al administrador'));
+      return res
+        .status(404)
+        .json(respuesta(false, "Espacio deportivo no encontrado o no pertenece al administrador"));
     }
 
     // Procesar archivos subidos con Multer
     const processedFiles = await createUploadAndProcess(imageFields, nombreFolder, espacioActual.nombre)(req, res);
 
     // Preparar campos para actualizar
-    const camposActualizar = { ...req.body };
+    const camposActualizar = { ...req.body, id_admin_esp_dep }; // ✅ siempre incluir el id_admin_esp_dep correcto
 
     // Si se subieron archivos, agregarlos a los campos a actualizar
-    imageFields.forEach(field => {
+    imageFields.forEach((field) => {
       if (processedFiles[field]) {
         camposActualizar[field] = processedFiles[field];
         uploadedFiles.push(camposActualizar[field]);
@@ -548,53 +630,50 @@ const actualizarEspacioController = async (req, res) => {
     });
 
     if (Object.keys(camposActualizar).length === 0 && Object.keys(processedFiles).length === 0) {
-      // Limpiar archivos nuevos si no hay campos para actualizar
       if (uploadedFiles.length > 0) {
-        const cleanupPromises = uploadedFiles.map(file => unlinkFile(file));
+        const cleanupPromises = uploadedFiles.map((file) => unlinkFile(file));
         await Promise.all(cleanupPromises);
       }
-      return res.status(400).json(respuesta(false, 'No se proporcionaron campos para actualizar'));
+      return res.status(400).json(respuesta(false, "No se proporcionaron campos para actualizar"));
     }
 
     const espacioActualizado = await actualizarEspacio(parseInt(id), camposActualizar);
 
     if (!espacioActualizado) {
-      // Limpiar archivos nuevos si el espacio no existe
       if (uploadedFiles.length > 0) {
-        const cleanupPromises = uploadedFiles.map(file => unlinkFile(file));
+        const cleanupPromises = uploadedFiles.map((file) => unlinkFile(file));
         await Promise.all(cleanupPromises);
       }
-      return res.status(404).json(respuesta(false, 'Espacio deportivo no encontrado'));
+      return res.status(404).json(respuesta(false, "Espacio deportivo no encontrado"));
     }
 
     // Eliminar archivos anteriores después de una actualización exitosa
     if (oldFilesToDelete.length > 0) {
-      const cleanupPromises = oldFilesToDelete.map(file =>
-        unlinkFile(file).catch(err => {
-          console.warn('⚠️ No se pudo eliminar el archivo anterior:', err.message);
+      const cleanupPromises = oldFilesToDelete.map((file) =>
+        unlinkFile(file).catch((err) => {
+          console.warn("⚠️ No se pudo eliminar el archivo anterior:", err.message);
         })
       );
       await Promise.all(cleanupPromises);
     }
 
-    let mensaje = 'Espacio deportivo actualizado correctamente';
-    imageFields.forEach(field => {
+    let mensaje = "Espacio deportivo actualizado correctamente";
+    imageFields.forEach((field) => {
       if (processedFiles[field]) {
-        mensaje += `. ${field.replace('_', ' ')} actualizada`;
+        mensaje += `. ${field.replace("_", " ")} actualizada`;
       }
     });
 
     res.json(respuesta(true, mensaje, { espacio: espacioActualizado }));
   } catch (error) {
-    console.error('Error en actualizarEspacio:', error.message);
+    console.error("Error en actualizarEspacio:", error);
 
-    // Limpiar archivos subidos en caso de error
     if (uploadedFiles.length > 0) {
-      const cleanupPromises = uploadedFiles.map(file => unlinkFile(file));
+      const cleanupPromises = uploadedFiles.map((file) => unlinkFile(file));
       await Promise.all(cleanupPromises);
     }
 
-    res.status(500).json(respuesta(false, error.message));
+    res.status(500).json(respuesta(false, error.message || "Error interno del servidor"));
   }
 };
 
@@ -638,5 +717,8 @@ router.get('/dato-individual/:id', obtenerEspacioPorIdController);
 router.post('/', crearEspacioController);
 router.patch('/:id', actualizarEspacioController);
 router.delete('/:id', eliminarEspacioController);
+
+router.get('/mis-espacios', obtenerEspaciosConCanchasController);
+
 
 module.exports = router;

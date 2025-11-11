@@ -11,6 +11,37 @@ const respuesta = (exito, mensaje, datos = null) => ({
 });
 
 // MODELOS - Funciones puras para operaciones de base de datos
+/**
+ * Obtener solo reservas activas (pendientes o en cuotas)
+ */
+const obtenerReservasActivas = async () => {
+  try {
+    const query = `
+      SELECT 
+        r.id_reserva, 
+        r.fecha_reserva, 
+        r.estado,
+        r.monto_total,
+        c.id_cliente, 
+        u.nombre AS cliente_nombre, 
+        u.apellido AS cliente_apellido,
+        ca.id_cancha, 
+        ca.nombre AS cancha_nombre
+      FROM reserva r
+      JOIN cliente c ON r.id_cliente = c.id_cliente
+      JOIN usuario u ON c.id_cliente = u.id_persona
+      JOIN cancha ca ON r.id_cancha = ca.id_cancha
+      WHERE r.estado IN ('pendiente', 'en_cuotas')
+      ORDER BY r.fecha_reserva ASC;
+    `;
+
+    const result = await pool.query(query);
+    return result.rows;
+  } catch (error) {
+    console.log('Error en obtenerReservasActivas:', { error: error.message, stack: error.stack });
+    throw error;
+  }
+};
 
 /**
  * Obtener datos específicos de reservas con información de cliente y cancha
@@ -368,6 +399,18 @@ const eliminarReserva = async (id) => {
 };
 
 // CONTROLADORES - Manejan las request y response
+/**
+ * Controlador para GET /activas
+ */
+const obtenerReservasActivasController = async (req, res) => {
+  try {
+    const reservas = await obtenerReservasActivas();
+    res.json(respuesta(true, 'Reservas activas obtenidas correctamente', { reservas }));
+  } catch (error) {
+    console.log('Error en obtenerReservasActivasController:', { error: error.message, stack: error.stack });
+    res.status(500).json(respuesta(false, error.message || 'Error al obtener reservas activas'));
+  }
+};
 
 /**
  * Controlador para GET /datos-especificos
@@ -564,5 +607,6 @@ router.get('/dato-individual/:id', obtenerReservaPorIdController);
 router.post('/', crearReservaController);
 router.patch('/:id', actualizarReservaController);
 router.delete('/:id', eliminarReservaController);
+router.get('/activas', obtenerReservasActivasController);
 
 module.exports = router;

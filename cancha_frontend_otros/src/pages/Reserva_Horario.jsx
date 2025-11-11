@@ -17,22 +17,22 @@ const getEffectiveRole = () => {
     const arr = Array.isArray(u?.roles) ? u.roles : [];
     for (const r of arr) {
       if (typeof r === 'string') bag.add(r);
-      else if (r && typeof r === 'object') ['rol','role','nombre','name'].forEach(k => { if (r[k]) bag.add(r[k]); });
+      else if (r && typeof r === 'object') ['rol', 'role', 'nombre', 'name'].forEach(k => { if (r[k]) bag.add(r[k]); });
     }
     if (bag.size === 0 && u?.role) bag.add(u.role);
-  } catch {}
+  } catch { }
   const tok = localStorage.getItem('token');
   if (bag.size === 0 && tok && tok.split('.').length === 3) {
     try {
-      const payload = JSON.parse(atob(tok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      const payload = JSON.parse(atob(tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
       const t = Array.isArray(payload?.roles) ? payload.roles : (payload?.rol ? [payload.rol] : []);
       t.forEach(v => bag.add(v));
-    } catch {}
+    } catch { }
   }
-  const norm = Array.from(bag).map(v => String(v || '').trim().toUpperCase().replace(/\s+/g,'_'));
+  const norm = Array.from(bag).map(v => String(v || '').trim().toUpperCase().replace(/\s+/g, '_'));
   const map = v => v === 'ADMIN' ? 'ADMINISTRADOR' : v;
   const norm2 = norm.map(map);
-  const prio = ['ADMINISTRADOR','ADMIN_ESP_DEP','ENCARGADO'];
+  const prio = ['ADMINISTRADOR', 'ADMIN_ESP_DEP', 'ENCARGADO'];
   return prio.find(r => norm2.includes(r) && keys.includes(r)) || norm2.find(r => keys.includes(r)) || 'DEFAULT';
 };
 
@@ -76,7 +76,7 @@ const ReservaHorario = () => {
   useEffect(() => {
     const fetchReservas = async () => {
       try {
-        const response = await api.get('/reserva/datos-especificos');
+        const response = await api.get('/reserva/activas');
         if (response.data?.exito) setReservas(response.data.datos.reservas || []);
         else setError(response.data?.mensaje || 'Error al obtener reservas');
       } catch (err) {
@@ -209,8 +209,25 @@ const ReservaHorario = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === 'id_reserva') {
+      const selectedReserva = reservas.find(r => r.id_reserva === parseInt(value));
+      if (selectedReserva) {
+        setFormData(prev => ({
+          ...prev,
+          id_reserva: value,
+          fecha: selectedReserva.fecha_reserva
+            ? new Date(selectedReserva.fecha_reserva).toISOString().split('T')[0]
+            : '',
+          monto: selectedReserva.monto_total || '1'
+        }));
+        return;
+      }
+    }
+
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
 
   const toTimeWithSeconds = (t) => (t && t.length === 5) ? `${t}:00` : t;
 
@@ -268,8 +285,8 @@ const ReservaHorario = () => {
               placeholder="Buscar por cliente o cancha"
               className="border rounded-l px-4 py-2 w-full"
             />
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="bg-blue-500 text-white px-4 py-2 rounded-r hover:bg-blue-600 whitespace-nowrap"
             >
               Buscar

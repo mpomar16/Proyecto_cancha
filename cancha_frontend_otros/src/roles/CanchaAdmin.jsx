@@ -329,14 +329,22 @@ useEffect(() => {
       if (editMode) {
         resp = await api.patch(`/cancha/${currentCancha.id_cancha}`, data, cfg);
         if (resp.data?.exito && disciplinasSeleccionadas.length > 0) {
-          await api.post(`/cancha/${currentCancha.id_cancha}/disciplinas`, { id_admin_esp_dep: idAdminEspDep, disciplinas: disciplinasSeleccionadas }, cfg);
+          await api.post(
+            `/cancha/${currentCancha.id_cancha}/disciplinas`,
+            { id_admin_esp_dep: idAdminEspDep, disciplinas: disciplinasSeleccionadas },
+            { headers: { 'Content-Type': 'application/json' } }
+          );
         }
       } else {
         resp = await api.post('/cancha/', data, cfg);
         if (resp.data?.exito && disciplinasSeleccionadas.length > 0) {
           const nuevaId = resp.data.datos?.cancha?.id_cancha;
           if (nuevaId) {
-            await api.post(`/cancha/${nuevaId}/disciplinas`, { id_admin_esp_dep: idAdminEspDep, disciplinas: disciplinasSeleccionadas }, cfg);
+            await api.post(
+              `/cancha/${nuevaId}/disciplinas`,
+              { id_admin_esp_dep: idAdminEspDep, disciplinas: disciplinasSeleccionadas },
+              { headers: { 'Content-Type': 'application/json' } }
+            );
           }
         }
       }
