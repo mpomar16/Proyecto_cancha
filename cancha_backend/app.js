@@ -34,6 +34,8 @@ const cancha_adminRoutes = require('./api/roles/cancha_admin');
 const reserva_adminRoutes = require('./api/roles/reserva_admin');
 const reserva_horario_adminRoutes = require('./api/roles/reserva_horario_admin');
 const resena_adminRoutes = require('./api/roles/resena_admin');
+const dashboard_adminRoutes = require('./api/roles/dashboard_admin');
+const pago_adminRoutes = require('./api/roles/pago_admin');
 const qr_controlRoutes = require('./api/roles/qr_control');
 const reporte_encargadoRoutes = require('./api/roles/reporte_encargado');
 const resena_clienteRoutes = require('./api/roles/resena_cliente');
@@ -85,6 +87,8 @@ try {
   app.use('/reserva-admin', reserva_adminRoutes);
   app.use('/reserva-horario-admin', reserva_horario_adminRoutes);
   app.use('/resena-admin', resena_adminRoutes);
+  app.use('/dashboard-admin', dashboard_adminRoutes);
+  app.use('/pago-admin', pago_adminRoutes);
   app.use('/qr-control', qr_controlRoutes);
   app.use('/reporte-encargado', reporte_encargadoRoutes);
   app.use('/resena-cliente', resena_clienteRoutes);

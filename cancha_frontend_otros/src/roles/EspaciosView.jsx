@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import { FaChevronDown, FaChevronRight } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import DashboardAdminEsp from './DashboardAdminEsp';
 
 const norm = (v) => String(v || '').trim().toUpperCase().replace(/\s+/g, '_');
 
@@ -95,6 +96,8 @@ const handleVerResenas = (idCancha) => {
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
+      <h2 className="text-xl font-semibold mb-4">Panel de Gestión</h2>
+      <DashboardAdminEsp idAdminEspDep={idAdminEspDep} />
       <h2 className="text-xl font-semibold mb-4">Mis Espacios Deportivos</h2>
 
       {espacios.length === 0 ? (

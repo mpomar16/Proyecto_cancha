@@ -31,6 +31,7 @@ import Reserva_HorarioAdmin from './roles/Reserva_HorarioAdmin';
 import ResenaAdmin from './roles/ResenaAdmin';
 import EspaciosView from './roles/EspaciosView';
 import CalendarioReservasAdmin from './roles/CalendarioReservasAdmin';
+import PagoAdmin from './roles/PagoAdmin';
 
 // Configuración de rutas para cada rol
 const roleRoutesConfig = {
@@ -63,6 +64,7 @@ const roleRoutesConfig = {
     { id: 'cancha', label: 'Cancha', icon: '🎾', path: 'cancha', component: CanchaAdmin },
     { id: 'reserva', label: 'Reserva', icon: '📅', path: 'reserva', component: ReservaAdmin },
     { id: 'reserva_horario', label: 'Reserva Horario', icon: '⏰', path: 'reserva-horario', component: Reserva_HorarioAdmin },
+    { id: 'pago', label: 'Pago', icon: '💳', path: 'pago', component: PagoAdmin },
     { id: 'resena', label: 'Reseña', icon: '⭐', path: 'resena', component: ResenaAdmin },
     { id: 'disciplina', label: 'Disciplina', icon: '🥋', path: 'disciplina', component: Disciplina },
   ],
