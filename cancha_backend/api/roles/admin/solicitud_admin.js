@@ -3,8 +3,8 @@
  * Estilo: modelos + controladores en el mismo archivo, con helper "respuesta"
  */
 const express = require('express');
-const pool = require('../../config/database');
-const { verifyToken, checkRole } = require('../../middleware/auth');
+const pool = require('../../../config/database');
+const { verifyToken, checkRole } = require('../../../middleware/auth');
 
 const router = express.Router();
 
@@ -22,7 +22,7 @@ let notifyUsuarioResultado = async () => {};
 
 try {
   const nodemailer = require('nodemailer');
-  const mailCfg = require('../../config/mail'); // {ENABLED,HOST,PORT,SECURE,USER,PASS,FROM,ADMIN_TO}
+  const mailCfg = require('../../../config/mail'); // {ENABLED,HOST,PORT,SECURE,USER,PASS,FROM,ADMIN_TO}
 
   if (mailCfg?.ENABLED) {
     const transporter = nodemailer.createTransport({

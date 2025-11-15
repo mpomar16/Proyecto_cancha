@@ -1,8 +1,8 @@
 const express = require('express');
-const pool = require('../../config/database');
+const pool = require('../../../config/database');
 const path = require("path");
 const fs = require("fs").promises;
-const { unlinkFile, createUploadAndProcess } = require("../../middleware/multer");
+const { unlinkFile, createUploadAndProcess } = require("../../../middleware/multer");
 
 const router = express.Router();
 

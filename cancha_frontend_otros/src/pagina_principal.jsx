@@ -24,14 +24,15 @@ import Participa_En from './pages/Participa_En';
 // importa por roles
 import QRControl from './roles/QRControl';
 import ReporteEncargado from './roles/ReporteEncargado';
-import EspacioDeportivoAdmin from './roles/EspacioDeportivoAdmin';
-import CanchaAdmin from './roles/CanchaAdmin';
-import ReservaAdmin from './roles/ReservaAdmin';
-import Reserva_HorarioAdmin from './roles/Reserva_HorarioAdmin';
-import ResenaAdmin from './roles/ResenaAdmin';
-import EspaciosView from './roles/EspaciosView';
-import CalendarioReservasAdmin from './roles/CalendarioReservasAdmin';
-import PagoAdmin from './roles/PagoAdmin';
+
+import EspacioDeportivoAdmin from './roles/admin/EspacioDeportivoAdmin';
+import CanchaAdmin from './roles/admin/CanchaAdmin';
+import ReservaAdmin from './roles/admin/ReservaAdmin';
+import Reserva_HorarioAdmin from './roles/admin/Reserva_HorarioAdmin';
+import ResenaAdmin from './roles/admin/ResenaAdmin';
+import EspaciosView from './roles/admin/EspaciosView';
+import CalendarioReservasAdmin from './roles/admin/CalendarioReservasAdmin';
+import PagoAdmin from './roles/admin/PagoAdmin';
 
 // Configuración de rutas para cada rol
 const roleRoutesConfig = {

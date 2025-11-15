@@ -1,7 +1,7 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable no-empty */
 import React, { useState, useEffect } from 'react';
-import api from '../services/api';
+import api from '../../services/api';
 import { FaChevronDown, FaChevronRight } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import DashboardAdminEsp from './DashboardAdminEsp';

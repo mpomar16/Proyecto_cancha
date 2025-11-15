@@ -29,18 +29,19 @@ const cancha_espacio_casualRoutes = require('./api/casual/cancha-espacio-casual'
 const cancha_casualRoutes = require('./api/casual/cancha-casual');
 
 // rutas según roles ya definidos
-const espacio_adminRoutes = require('./api/roles/espacio_admin');
-const cancha_adminRoutes = require('./api/roles/cancha_admin');
-const reserva_adminRoutes = require('./api/roles/reserva_admin');
-const reserva_horario_adminRoutes = require('./api/roles/reserva_horario_admin');
-const resena_adminRoutes = require('./api/roles/resena_admin');
-const dashboard_adminRoutes = require('./api/roles/dashboard_admin');
-const pago_adminRoutes = require('./api/roles/pago_admin');
+const espacio_adminRoutes = require('./api/roles/admin/espacio_admin');
+const cancha_adminRoutes = require('./api/roles/admin/cancha_admin');
+const reserva_adminRoutes = require('./api/roles/admin/reserva_admin');
+const reserva_horario_adminRoutes = require('./api/roles/admin/reserva_horario_admin');
+const resena_adminRoutes = require('./api/roles/admin/resena_admin');
+const dashboard_adminRoutes = require('./api/roles/admin/dashboard_admin');
+const pago_adminRoutes = require('./api/roles/admin/pago_admin');
+const solicitud_admin_esp_depRoutes = require('./api/roles/admin/solicitud_admin');
+
 const qr_controlRoutes = require('./api/roles/qr_control');
 const reporte_encargadoRoutes = require('./api/roles/reporte_encargado');
 const resena_clienteRoutes = require('./api/roles/resena_cliente');
 const reserva_clienteRoutes = require('./api/roles/reserva_cliente');
-const solicitud_admin_esp_depRoutes = require('./api/roles/solicitud_admin');
 
 
 const x_imagenRoutes = require('./api/x_imagen');
