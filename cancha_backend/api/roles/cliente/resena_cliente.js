@@ -1,5 +1,5 @@
 const express = require('express');
-const pool = require('../../config/database');
+const pool = require('../../../config/database');
 
 const router = express.Router();
 
@@ -202,56 +202,68 @@ const obtenerResenaPorId = async (id, id_cliente) => {
  */
 const crearResena = async (id_cliente, datosResena) => {
   try {
-    // Validaciones básicas
     if (!datosResena.id_reserva || isNaN(datosResena.id_reserva)) {
-      throw new Error('El ID de la reserva es obligatorio y debe ser un número');
+      throw new Error('El ID de la reserva es obligatorio y debe ser un numero');
     }
-    if (!datosResena.estrellas || isNaN(datosResena.estrellas) || datosResena.estrellas < 1 || datosResena.estrellas > 5) {
+    if (
+      !datosResena.estrellas ||
+      isNaN(datosResena.estrellas) ||
+      datosResena.estrellas < 1 ||
+      datosResena.estrellas > 5
+    ) {
       throw new Error('Las estrellas son obligatorias y deben estar entre 1 y 5');
     }
 
-    // Validar estado si se proporciona
     if (datosResena.estado !== undefined && typeof datosResena.estado !== 'boolean') {
       throw new Error('El estado debe ser un valor booleano');
     }
 
-    // Validar verificado
     if (datosResena.verificado !== undefined && typeof datosResena.verificado !== 'boolean') {
       throw new Error('El campo verificado debe ser un valor booleano');
     }
 
-    // Verificar si la reserva existe y pertenece al cliente
     const reservaQuery = `
-      SELECT id_reserva 
-      FROM reserva 
+      SELECT id_reserva, id_cliente, id_cancha
+      FROM reserva
       WHERE id_reserva = $1 AND id_cliente = $2
     `;
-    const reservaResult = await pool.query(reservaQuery, [datosResena.id_reserva, id_cliente]);
+    const reservaResult = await pool.query(reservaQuery, [
+      datosResena.id_reserva,
+      id_cliente
+    ]);
+
     if (!reservaResult.rows[0]) {
       throw new Error('La reserva asociada no existe o no pertenece al cliente');
     }
 
-    // Verificar si ya existe una reseña para esta reserva
+    const reservaRow = reservaResult.rows[0];
+
     const resenaExistenteQuery = `
-      SELECT id_resena 
-      FROM resena 
-      WHERE id_reserva = $1
+      SELECT id_resena
+      FROM resena
+      WHERE id_reserva = $1 AND id_cliente = $2
     `;
-    const resenaExistenteResult = await pool.query(resenaExistenteQuery, [datosResena.id_reserva]);
+    const resenaExistenteResult = await pool.query(resenaExistenteQuery, [
+      reservaRow.id_reserva,
+      reservaRow.id_cliente
+    ]);
+
     if (resenaExistenteResult.rows[0]) {
-      throw new Error('Ya existe una reseña asociada a esta reserva');
+      throw new Error('Ya existe una resena para esta reserva y cliente');
     }
 
     const query = `
       INSERT INTO resena (
-        id_reserva, estrellas, comentario, estado, verificado
-      ) 
-      VALUES ($1, $2, $3, $4, $5)
+        id_reserva, id_cliente, id_cancha, estrellas, comentario, estado, verificado
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
     `;
 
     const values = [
-      datosResena.id_reserva,
+      reservaRow.id_reserva,
+      reservaRow.id_cliente,
+      reservaRow.id_cancha,
       datosResena.estrellas,
       datosResena.comentario || null,
       datosResena.estado !== undefined ? datosResena.estado : false,
@@ -261,10 +273,11 @@ const crearResena = async (id_cliente, datosResena) => {
     const { rows } = await pool.query(query, values);
     return rows[0];
   } catch (error) {
-    console.error('Error al crear reseña:', error.message);
+    console.error('Error al crear resena:', error.message);
     throw new Error(error.message);
   }
 };
+
 
 /**
  * Actualizar reseña parcialmente
@@ -278,10 +291,9 @@ const actualizarResena = async (id, id_cliente, camposActualizar) => {
     );
 
     if (campos.length === 0) {
-      throw new Error('No hay campos válidos para actualizar');
+      throw new Error('No hay campos validos para actualizar');
     }
 
-    // Verificar que la reseña pertenece al cliente
     const resenaQuery = `
       SELECT re.id_resena 
       FROM resena re
@@ -290,25 +302,21 @@ const actualizarResena = async (id, id_cliente, camposActualizar) => {
     `;
     const resenaResult = await pool.query(resenaQuery, [id, id_cliente]);
     if (!resenaResult.rows[0]) {
-      throw new Error('Reseña no encontrada o no pertenece al cliente');
+      throw new Error('Resena no encontrada o no pertenece al cliente');
     }
 
-    // Validar estrellas
     if (camposActualizar.estrellas && (isNaN(camposActualizar.estrellas) || camposActualizar.estrellas < 1 || camposActualizar.estrellas > 5)) {
       throw new Error('Las estrellas deben estar entre 1 y 5');
     }
 
-    // Validar estado
     if (camposActualizar.estado !== undefined && typeof camposActualizar.estado !== 'boolean') {
       throw new Error('El estado debe ser un valor booleano');
     }
 
-    // Validar verificado
     if (camposActualizar.verificado !== undefined && typeof camposActualizar.verificado !== 'boolean') {
       throw new Error('El campo verificado debe ser un valor booleano');
     }
 
-    // Validar reserva si se proporciona
     if (camposActualizar.id_reserva) {
       const reservaQuery = `
         SELECT id_reserva 
@@ -319,25 +327,15 @@ const actualizarResena = async (id, id_cliente, camposActualizar) => {
       if (!reservaResult.rows[0]) {
         throw new Error('La reserva asociada no existe o no pertenece al cliente');
       }
-      // Verificar unicidad de id_reserva
-      const resenaExistenteQuery = `
-        SELECT id_resena 
-        FROM resena 
-        WHERE id_reserva = $1 AND id_resena != $2
-      `;
-      const resenaExistenteResult = await pool.query(resenaExistenteQuery, [camposActualizar.id_reserva, id]);
-      if (resenaExistenteResult.rows[0]) {
-        throw new Error('Ya existe otra reseña asociada a esta reserva');
-      }
     }
 
     const setClause = campos.map((campo, index) => `${campo} = $${index + 2}`).join(', ');
     const values = campos.map(campo => {
       const value = camposActualizar[campo];
-      if (['comentario'].includes(campo)) {
+      if (campo === 'comentario') {
         return value || null;
       }
-      if (['estado', 'verificado'].includes(campo)) {
+      if (campo === 'estado' || campo === 'verificado') {
         return value;
       }
       return value !== undefined && value !== null ? value : null;
@@ -356,6 +354,7 @@ const actualizarResena = async (id, id_cliente, camposActualizar) => {
     throw error;
   }
 };
+
 
 /**
  * Eliminar reseña
@@ -504,26 +503,34 @@ const crearResenaController = async (req, res) => {
     const id_cliente = parseInt(req.body.id_cliente || req.query.id_cliente);
 
     if (!id_cliente || isNaN(id_cliente)) {
-      return res.status(400).json(respuesta(false, 'ID de cliente no válido o no proporcionado'));
+      return res.status(400).json(respuesta(false, 'ID de cliente no valido o no proporcionado'));
     }
 
     const camposObligatorios = ['id_reserva', 'estrellas'];
-    const faltantes = camposObligatorios.filter(campo => !datos[campo] || datos[campo].toString().trim() === '');
+    const faltantes = camposObligatorios.filter(
+      (campo) => !datos[campo] || datos[campo].toString().trim() === ''
+    );
 
     if (faltantes.length > 0) {
-      return res.status(400).json(
-        respuesta(false, `Faltan campos obligatorios: ${faltantes.join(', ')}`)
-      );
+      return res
+        .status(400)
+        .json(
+          respuesta(false, `Faltan campos obligatorios: ${faltantes.join(', ')}`)
+        );
     }
 
     const nuevaResena = await crearResena(id_cliente, datos);
 
-    res.status(201).json(respuesta(true, 'Reseña creada correctamente', { resena: nuevaResena }));
+    res
+      .status(201)
+      .json(respuesta(true, 'Resena creada correctamente', { resena: nuevaResena }));
   } catch (error) {
-    console.error('Error en crearResena:', error.message);
-    
     if (error.code === '23505') {
-      return res.status(400).json(respuesta(false, 'Ya existe una reseña asociada a esta reserva'));
+      return res
+        .status(400)
+        .json(
+          respuesta(false, 'Ya existe una resena para esta reserva y cliente')
+        );
     }
 
     res.status(500).json(respuesta(false, error.message));

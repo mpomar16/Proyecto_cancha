@@ -37,7 +37,8 @@ import PagoAdmin from './roles/admin/PagoAdmin';
 // Configuración de rutas para cada rol
 const roleRoutesConfig = {
   ADMINISTRADOR: [
-    { id: 'solicitud', label: 'Solicitud', icon: '📝', path: 'solicitud', component: Solicitud },
+    { id: 'solicitud_admin_esp', label: 'Solicitudes Admin Esp', icon: '📑', path: 'solicitud-admin-esp', component: () => <Solicitud mode="admin_esp_dep" /> },
+    { id: 'solicitud_rol', label: 'Solicitudes Encargado/Control', icon: '🧩', path: 'solicitud-rol', component: () => <Solicitud mode="rol" /> },
     { id: 'usuario', label: 'Usuario', icon: '👤', path: 'usuario', component: Usuario },
     { id: 'administrador', label: 'Administrador', icon: '👤', path: 'administrador', component: Administrador },
     { id: 'admin_esp_dep', label: 'Admin Esp Dep', icon: '⚙️', path: 'admin-esp-dep', component: Admin_Esp_Dep },

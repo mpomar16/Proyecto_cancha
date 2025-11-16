@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import Header from '../Header';
+
 
 // --- Helpers de roles ---
 const getUserRoles = (u) => {
@@ -320,242 +322,254 @@ const ReservaCliente = () => {
   };
 
   if (role === 'DEFAULT' || !idCliente) {
-    return <p>Cargando permisos...</p>;
+    return (
+      <>
+        <Header />
+        <div className="pt-24 px-4">
+          <p>Cargando permisos...</p>
+        </div>
+      </>
+    );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-xl font-semibold mb-4">Gestión de Reservas</h2>
+    <>
+      <Header />
+      <div className="pt-24 px-4">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">Gestión de Reservas</h2>
 
-      <div className="flex flex-col xl:flex-row gap-4 mb-6 items-stretch">
-        <div className="flex-1">
-          <form onSubmit={handleSearch} className="flex h-full">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="🔍 Buscar por cancha, fecha o estado..."
-              className="border rounded-l px-4 py-2 w-full"
-            />
-            <button
-              type="submit"
-              className="bg-blue-500 text-white px-4 py-2 rounded-r hover:bg-blue-600 whitespace-nowrap"
-            >
-              🔎 Buscar
-            </button>
-          </form>
-        </div>
+          <div className="flex flex-col xl:flex-row gap-4 mb-6 items-stretch">
+            <div className="flex-1">
+              <form onSubmit={handleSearch} className="flex h-full">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="🔍 Buscar por cancha, fecha o estado..."
+                  className="border rounded-l px-4 py-2 w-full"
+                />
+                <button
+                  type="submit"
+                  className="bg-blue-500 text-white px-4 py-2 rounded-r hover:bg-blue-600 whitespace-nowrap"
+                >
+                  🔎 Buscar
+                </button>
+              </form>
+            </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          <select
-            value={filtro}
-            onChange={handleFiltroChange}
-            className="border rounded px-3 py-2 flex-1 sm:min-w-[180px]"
-          >
-            <option value="">📋 Todos - Sin filtro</option>
-            <option value="fecha">📅 Ordenar por fecha</option>
-            <option value="monto">💰 Ordenar por monto</option>
-            <option value="estado">🟢 Ordenar por estado</option>
-          </select>
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <select
+                value={filtro}
+                onChange={handleFiltroChange}
+                className="border rounded px-3 py-2 flex-1 sm:min-w-[180px]"
+              >
+                <option value="">📋 Todos - Sin filtro</option>
+                <option value="fecha">📅 Ordenar por fecha</option>
+                <option value="monto">💰 Ordenar por monto</option>
+                <option value="estado">🟢 Ordenar por estado</option>
+              </select>
 
-          {permissions.canCreate && (
-            <button
-              onClick={openCreateModal}
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 whitespace-nowrap sm:w-auto w-full flex items-center justify-center gap-2"
-            >
-              <span>📅</span>
-              <span>Crear Reserva</span>
-            </button>
+              {permissions.canCreate && (
+                <button
+                  onClick={openCreateModal}
+                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 whitespace-nowrap sm:w-auto w-full flex items-center justify-center gap-2"
+                >
+                  <span>📅</span>
+                  <span>Crear Reserva</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {loading ? (
+            <p>Cargando reservas...</p>
+          ) : error ? (
+            <p className="text-red-500">{error}</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full table-auto border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-4 py-2 text-left">#</th>
+                      <th className="px-4 py-2 text-left">Cancha</th>
+                      <th className="px-4 py-2 text-left">Fecha</th>
+                      <th className="px-4 py-2 text-left">Cupo</th>
+                      <th className="px-4 py-2 text-left">Monto Total</th>
+                      <th className="px-4 py-2 text-left">Saldo Pendiente</th>
+                      <th className="px-4 py-2 text-left">Estado</th>
+                      <th className="px-4 py-2 text-left">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reservas.map((reserva, index) => (
+                      <tr key={reserva.id_reserva} className="border-t">
+                        <td className="px-4 py-2">{(page - 1) * limit + index + 1}</td>
+                        <td className="px-4 py-2">{reserva.cancha_nombre}</td>
+                        <td className="px-4 py-2">
+                          {reserva.fecha_reserva ? new Date(reserva.fecha_reserva).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="px-4 py-2">{reserva.cupo ?? '-'}</td>
+                        <td className="px-4 py-2">{reserva.monto_total != null ? `$${reserva.monto_total}` : '-'}</td>
+                        <td className="px-4 py-2">{reserva.saldo_pendiente != null ? `$${reserva.saldo_pendiente}` : '-'}</td>
+                        <td className="px-4 py-2">{reserva.estado || '-'}</td>
+                        <td className="px-4 py-2 flex gap-2">
+                          {permissions.canView && (
+                            <button
+                              onClick={() => openViewModal(reserva.id_reserva)}
+                              className="text-green-500 hover:text-green-700 mr-2"
+                            >
+                              Ver Datos
+                            </button>
+                          )}
+                          {permissions.canEdit && (
+                            <button
+                              onClick={() => openEditModal(reserva.id_reserva)}
+                              className="text-blue-500 hover:text-blue-700 mr-2"
+                            >
+                              Editar
+                            </button>
+                          )}
+                          {permissions.canDelete && (
+                            <button
+                              onClick={() => handleDelete(reserva.id_reserva)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              Eliminar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page === 1}
+                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-l hover:bg-gray-400 disabled:opacity-50"
+                >
+                  Anterior
+                </button>
+                <span className="px-4 py-2 bg-gray-100">
+                  Página {page} de {Math.ceil(total / limit) || 1}
+                </span>
+                <button
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page === Math.ceil(total / limit)}
+                  className="bg-gray-300 text-gray-800 px-4 py-2 rounded-r hover:bg-gray-400 disabled:opacity-50"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </>
+          )}
+
+          {modalOpen && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+                <h3 className="text-xl font-semibold mb-4">
+                  {viewMode ? 'Ver Datos de Reserva' : editMode ? 'Editar Reserva' : 'Crear Reserva'}
+                </h3>
+                <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Fecha de Reserva</label>
+                    <input
+                      name="fecha_reserva"
+                      value={formData.fecha_reserva}
+                      onChange={handleInputChange}
+                      className="w-full border rounded px-3 py-2 bg-gray-100"
+                      type="date"
+                      required
+                      disabled={viewMode}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Cupo</label>
+                    <input
+                      name="cupo"
+                      value={formData.cupo}
+                      onChange={handleInputChange}
+                      className="w-full border rounded px-3 py-2 bg-gray-100"
+                      type="number"
+                      min="1"
+                      disabled={viewMode}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Cancha</label>
+                    <select
+                      name="id_cancha"
+                      value={formData.id_cancha}
+                      onChange={handleInputChange}
+                      className="w-full border rounded px-3 py-2 bg-gray-100"
+                      required
+                      disabled={viewMode}
+                    >
+                      <option value="">Seleccione una cancha</option>
+                      {canchas.map((cancha) => (
+                        <option key={cancha.id_cancha} value={cancha.id_cancha}>
+                          {cancha.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Campos solo de lectura para cliente */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Monto Total</label>
+                    <input
+                      value={formData.monto_total ?? ''}
+                      className="w-full border rounded px-3 py-2 bg-gray-100"
+                      disabled
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Saldo Pendiente</label>
+                    <input
+                      value={formData.saldo_pendiente ?? ''}
+                      className="w-full border rounded px-3 py-2 bg-gray-100"
+                      disabled
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Estado</label>
+                    <input
+                      value={formData.estado ?? ''}
+                      className="w-full border rounded px-3 py-2 bg-gray-100"
+                      disabled
+                    />
+                  </div>
+
+                  <div className="col-span-2 flex justify-end mt-4">
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600"
+                    >
+                      Cerrar
+                    </button>
+                    {!viewMode && (
+                      <button
+                        type="submit"
+                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                      >
+                        {editMode ? 'Actualizar' : 'Crear'}
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+            </div>
           )}
         </div>
       </div>
-
-      {loading ? (
-        <p>Cargando reservas...</p>
-      ) : error ? (
-        <p className="text-red-500">{error}</p>
-      ) : (
-        <>
-          <div className="overflow-x-auto">
-            <table className="min-w-full table-auto border-collapse">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-left">#</th>
-                  <th className="px-4 py-2 text-left">Cancha</th>
-                  <th className="px-4 py-2 text-left">Fecha</th>
-                  <th className="px-4 py-2 text-left">Cupo</th>
-                  <th className="px-4 py-2 text-left">Monto Total</th>
-                  <th className="px-4 py-2 text-left">Saldo Pendiente</th>
-                  <th className="px-4 py-2 text-left">Estado</th>
-                  <th className="px-4 py-2 text-left">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reservas.map((reserva, index) => (
-                  <tr key={reserva.id_reserva} className="border-t">
-                    <td className="px-4 py-2">{(page - 1) * limit + index + 1}</td>
-                    <td className="px-4 py-2">{reserva.cancha_nombre}</td>
-                    <td className="px-4 py-2">
-                      {reserva.fecha_reserva ? new Date(reserva.fecha_reserva).toLocaleDateString() : '-'}
-                    </td>
-                    <td className="px-4 py-2">{reserva.cupo ?? '-'}</td>
-                    <td className="px-4 py-2">{reserva.monto_total != null ? `$${reserva.monto_total}` : '-'}</td>
-                    <td className="px-4 py-2">{reserva.saldo_pendiente != null ? `$${reserva.saldo_pendiente}` : '-'}</td>
-                    <td className="px-4 py-2">{reserva.estado || '-'}</td>
-                    <td className="px-4 py-2 flex gap-2">
-                      {permissions.canView && (
-                        <button
-                          onClick={() => openViewModal(reserva.id_reserva)}
-                          className="text-green-500 hover:text-green-700 mr-2"
-                        >
-                          Ver Datos
-                        </button>
-                      )}
-                      {permissions.canEdit && (
-                        <button
-                          onClick={() => openEditModal(reserva.id_reserva)}
-                          className="text-blue-500 hover:text-blue-700 mr-2"
-                        >
-                          Editar
-                        </button>
-                      )}
-                      {permissions.canDelete && (
-                        <button
-                          onClick={() => handleDelete(reserva.id_reserva)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          Eliminar
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex justify-center mt-4">
-            <button
-              onClick={() => handlePageChange(page - 1)}
-              disabled={page === 1}
-              className="bg-gray-300 text-gray-800 px-4 py-2 rounded-l hover:bg-gray-400 disabled:opacity-50"
-            >
-              Anterior
-            </button>
-            <span className="px-4 py-2 bg-gray-100">
-              Página {page} de {Math.ceil(total / limit) || 1}
-            </span>
-            <button
-              onClick={() => handlePageChange(page + 1)}
-              disabled={page === Math.ceil(total / limit)}
-              className="bg-gray-300 text-gray-800 px-4 py-2 rounded-r hover:bg-gray-400 disabled:opacity-50"
-            >
-              Siguiente
-            </button>
-          </div>
-        </>
-      )}
-
-      {modalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-semibold mb-4">
-              {viewMode ? 'Ver Datos de Reserva' : editMode ? 'Editar Reserva' : 'Crear Reserva'}
-            </h3>
-            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Fecha de Reserva</label>
-                <input
-                  name="fecha_reserva"
-                  value={formData.fecha_reserva}
-                  onChange={handleInputChange}
-                  className="w-full border rounded px-3 py-2 bg-gray-100"
-                  type="date"
-                  required
-                  disabled={viewMode}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Cupo</label>
-                <input
-                  name="cupo"
-                  value={formData.cupo}
-                  onChange={handleInputChange}
-                  className="w-full border rounded px-3 py-2 bg-gray-100"
-                  type="number"
-                  min="1"
-                  disabled={viewMode}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Cancha</label>
-                <select
-                  name="id_cancha"
-                  value={formData.id_cancha}
-                  onChange={handleInputChange}
-                  className="w-full border rounded px-3 py-2 bg-gray-100"
-                  required
-                  disabled={viewMode}
-                >
-                  <option value="">Seleccione una cancha</option>
-                  {canchas.map((cancha) => (
-                    <option key={cancha.id_cancha} value={cancha.id_cancha}>
-                      {cancha.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Campos solo de lectura para cliente */}
-              <div>
-                <label className="block text-sm font-medium mb-1">Monto Total</label>
-                <input
-                  value={formData.monto_total ?? ''}
-                  className="w-full border rounded px-3 py-2 bg-gray-100"
-                  disabled
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Saldo Pendiente</label>
-                <input
-                  value={formData.saldo_pendiente ?? ''}
-                  className="w-full border rounded px-3 py-2 bg-gray-100"
-                  disabled
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Estado</label>
-                <input
-                  value={formData.estado ?? ''}
-                  className="w-full border rounded px-3 py-2 bg-gray-100"
-                  disabled
-                />
-              </div>
-
-              <div className="col-span-2 flex justify-end mt-4">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600"
-                >
-                  Cerrar
-                </button>
-                {!viewMode && (
-                  <button
-                    type="submit"
-                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                  >
-                    {editMode ? 'Actualizar' : 'Crear'}
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 };
 

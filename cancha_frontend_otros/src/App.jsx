@@ -7,6 +7,11 @@ import PaginaPrincipal from './pagina_principal';
 import EspaciosDeportivos from './casual/EspaciosDeportivos';
 import CanchasEspacio from './casual/CanchasEspacio';
 import Cancha from './casual/Cancha';
+import ReservarCliente from './roles/cliente/ReservarCliente';
+import ReservaDetalleCompartida from './roles/cliente/ReservaDetalleCompartida';
+import MisReservasCliente from './roles/cliente/MisReservasCliente';
+import ComprobantePagoCliente from './roles/cliente/ComprobantePagoCliente';
+import UnirseReserva from './roles/deportista/UnirseReserva';
 
 // Componente ProtectedRoute para verificar roles
 const ProtectedRoute = ({ children }) => {
@@ -326,6 +331,11 @@ const App = () => {
         <Route path="/espacios-deportivos" element={<EspaciosDeportivos />} />
         <Route path="/canchas-espacio/:id" element={<CanchasEspacio />} />
         <Route path="/canchas" element={<Cancha />} />
+        <Route path="/reservar/:idCancha" element={<ReservarCliente />} />
+        <Route path="/reserva-detalle/:idReserva" element={<ReservaDetalleCompartida />} />
+        <Route path="/mis-reservas" element={<MisReservasCliente />} />
+        <Route path="/comprobante-pago/:idPago" element={<ComprobantePagoCliente />} />
+        <Route path="/unirse-reserva" element={<UnirseReserva />} />
         <Route
           path="/administrador/*"
           element={

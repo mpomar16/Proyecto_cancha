@@ -326,6 +326,39 @@ const eliminarHorario = async (id) => {
   }
 };
 
+const obtenerHorariosOcupadosPorCanchaFecha = async (id_cancha, fecha) => {
+  try {
+    const query = `
+      SELECT rh.hora_inicio, rh.hora_fin
+      FROM reserva_horario rh
+      JOIN reserva r ON rh.id_reserva = r.id_reserva
+      WHERE r.id_cancha = $1
+        AND rh.fecha = $2
+        AND r.estado <> 'cancelada'
+    `;
+    const result = await pool.query(query, [id_cancha, fecha]);
+    return result.rows;
+  } catch (error) {
+    throw error;
+  }
+};
+
+const obtenerHorariosPorReserva = async (id_reserva) => {
+  try {
+    const query = `
+      SELECT rh.id_horario, rh.fecha, rh.hora_inicio, rh.hora_fin, rh.monto
+      FROM reserva_horario rh
+      WHERE rh.id_reserva = $1
+      ORDER BY rh.fecha, rh.hora_inicio
+    `;
+    const result = await pool.query(query, [id_reserva]);
+    return result.rows;
+  } catch (error) {
+    throw error;
+  }
+};
+
+
 // CONTROLADORES - Manejan las request y response
 
 /**
@@ -508,6 +541,61 @@ const eliminarHorarioController = async (req, res) => {
   }
 };
 
+const obtenerDisponibilidadPorCanchaFechaController = async (req, res) => {
+  try {
+    const { id_cancha, fecha } = req.query;
+
+    if (!id_cancha || isNaN(id_cancha)) {
+      return res
+        .status(400)
+        .json(respuesta(false, 'id_cancha no valido o no proporcionado'));
+    }
+
+    if (!fecha) {
+      return res
+        .status(400)
+        .json(respuesta(false, 'fecha no proporcionada'));
+    }
+
+    const ocupados = await obtenerHorariosOcupadosPorCanchaFecha(
+      parseInt(id_cancha),
+      fecha
+    );
+
+    res.json(
+      respuesta(true, 'Horarios ocupados obtenidos correctamente', {
+        ocupados,
+      })
+    );
+  } catch (error) {
+    res.status(500).json(respuesta(false, error.message));
+  }
+};
+
+const obtenerHorariosPorReservaController = async (req, res) => {
+  try {
+    const { idReserva } = req.params;
+
+    if (!idReserva || isNaN(idReserva)) {
+      return res
+        .status(400)
+        .json(respuesta(false, 'idReserva no valido'));
+    }
+
+    const horarios = await obtenerHorariosPorReserva(parseInt(idReserva));
+
+    res.json(
+      respuesta(true, 'Horarios de reserva obtenidos correctamente', {
+        horarios,
+      })
+    );
+  } catch (error) {
+    console.error('Error en obtenerHorariosPorReserva:', error.message);
+    res.status(500).json(respuesta(false, error.message));
+  }
+};
+
+
 // RUTAS
 
 // GET endpoints
@@ -520,5 +608,8 @@ router.get('/dato-individual/:id', obtenerHorarioPorIdController);
 router.post('/', crearHorarioController);
 router.patch('/:id', actualizarHorarioController);
 router.delete('/:id', eliminarHorarioController);
+
+router.get('/disponibles', obtenerDisponibilidadPorCanchaFechaController);
+router.get('/por-reserva/:idReserva', obtenerHorariosPorReservaController);
 
 module.exports = router;

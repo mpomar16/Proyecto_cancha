@@ -35,9 +35,25 @@ const getEffectiveRole = () => {
   return prio.find(r => norm2.includes(r) && keys.includes(r)) || norm2.find(r => keys.includes(r)) || 'DEFAULT';
 };
 
-const basePath = '/solicitud-admin-esp-dep';
+const modeConfig = {
+  admin_esp_dep: {
+    basePath: '/solicitud-admin-esp-dep',
+    titulo: 'Gestion de Solicitudes de Admin Esp Dep',
+    columnaPrincipal: 'Espacio',
+    getColPrincipal: row => row.espacio_nombre || '-'
+  },
+  rol: {
+    basePath: '/solicitud-rol',
+    titulo: 'Gestion de Solicitudes de Roles',
+    columnaPrincipal: 'Rol',
+    getColPrincipal: row => row.rol || row.rol_solicitado || '-'
+  }
+};
 
-const Solicitud = () => {
+const Solicitud = ({ mode = 'admin_esp_dep' }) => {
+  const cfg = modeConfig[mode] || modeConfig.admin_esp_dep;
+  const basePath = cfg.basePath;
+
   const [role, setRole] = useState(() => getEffectiveRole());
   const permissions = role && permissionsConfig[role] ? permissionsConfig[role] : permissionsConfig.DEFAULT;
 
@@ -75,7 +91,10 @@ const Solicitud = () => {
   useEffect(() => { setError(null); }, [role]);
 
   const fetchSolicitudes = async (params = {}) => {
-    if (!permissions.canView) { setError('No tienes permisos para ver'); return; }
+    if (!permissions.canView) {
+      setError('No tienes permisos para ver');
+      return;
+    }
     setLoading(true);
     setError(null);
     const offset = (page - 1) * limit;
@@ -99,7 +118,9 @@ const Solicitud = () => {
     }
   };
 
-  useEffect(() => { if (role) fetchSolicitudes(estado ? { estado } : {}); }, [page, role]);
+  useEffect(() => {
+    if (role) fetchSolicitudes(estado ? { estado } : {});
+  }, [page, role]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -131,7 +152,10 @@ const Solicitud = () => {
     }
   };
 
-  const closeView = () => { setViewOpen(false); setCurrent(null); };
+  const closeView = () => {
+    setViewOpen(false);
+    setCurrent(null);
+  };
 
   const canAct = (row) => row?.estado === 'pendiente';
 
@@ -170,7 +194,11 @@ const Solicitud = () => {
     setRejectOpen(true);
   };
 
-  const closeReject = () => { setRejectOpen(false); setCurrent(null); setRejectComment(''); };
+  const closeReject = () => {
+    setRejectOpen(false);
+    setCurrent(null);
+    setRejectComment('');
+  };
 
   const reject = async () => {
     if (!current) return;
@@ -195,7 +223,7 @@ const Solicitud = () => {
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-xl font-semibold mb-4">Gestion de Solicitudes</h2>
+      <h2 className="text-xl font-semibold mb-4">{cfg.titulo}</h2>
 
       <div className="flex flex-col xl:flex-row gap-4 mb-6 items-stretch">
         <div className="flex-1">
@@ -204,7 +232,7 @@ const Solicitud = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por usuario, correo, espacio o estado"
+              placeholder="Buscar por usuario, correo o estado"
               className="border rounded-l px-4 py-2 w-full"
               disabled={!permissions.canView}
             />
@@ -248,7 +276,7 @@ const Solicitud = () => {
                   <th className="px-4 py-2 text-left">ID</th>
                   <th className="px-4 py-2 text-left">Usuario</th>
                   <th className="px-4 py-2 text-left">Correo</th>
-                  <th className="px-4 py-2 text-left">Espacio</th>
+                  <th className="px-4 py-2 text-left">{cfg.columnaPrincipal}</th>
                   <th className="px-4 py-2 text-left">Estado</th>
                   <th className="px-4 py-2 text-left">Fecha Solicitud</th>
                   <th className="px-4 py-2 text-left">Acciones</th>
@@ -261,7 +289,7 @@ const Solicitud = () => {
                     <td className="px-4 py-2">{r.id_solicitud}</td>
                     <td className="px-4 py-2">{r.usuario_nombre || '-'}</td>
                     <td className="px-4 py-2">{r.correo || '-'}</td>
-                    <td className="px-4 py-2">{r.espacio_nombre || '-'}</td>
+                    <td className="px-4 py-2">{cfg.getColPrincipal(r)}</td>
                     <td className="px-4 py-2 capitalize">{r.estado}</td>
                     <td className="px-4 py-2">{r.fecha_solicitud ? new Date(r.fecha_solicitud).toLocaleString() : '-'}</td>
                     <td className="px-4 py-2 flex gap-2">
@@ -342,8 +370,8 @@ const Solicitud = () => {
                 <div className="font-medium">{current.correo || '-'}</div>
               </div>
               <div className="col-span-2">
-                <div className="text-sm text-gray-600">Espacio</div>
-                <div className="font-medium">{current.espacio_nombre || '-'}</div>
+                <div className="text-sm text-gray-600">{cfg.columnaPrincipal}</div>
+                <div className="font-medium">{cfg.getColPrincipal(current)}</div>
               </div>
               <div>
                 <div className="text-sm text-gray-600">Fecha solicitud</div>

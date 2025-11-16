@@ -1,26 +1,22 @@
-const express = require('express');
-const pool = require('../../config/database');
-
-const QRCode = require('qrcode');
-
+const express = require("express");
+const pool = require("../../config/database");
+const QRCode = require("qrcode");
 const path = require("path");
 const fs = require("fs").promises;
-const { unlinkFile, createUploadAndProcess } = require("../../middleware/multer");
+const { unlinkFile } = require("../../middleware/multer");
 
 const router = express.Router();
 
-// Función de respuesta estandarizada
 const respuesta = (exito, mensaje, datos = null) => ({
   exito,
   mensaje,
-  datos,
+  datos
 });
 
-// MODELOS - Funciones puras para operaciones de base de datos
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
 
-/**
- * Obtener datos específicos de QR de reservas con información de la reserva
- */
+const isValidTimestamp = (ts) => !isNaN(Date.parse(ts));
+
 const obtenerDatosEspecificos = async (limite = 10, offset = 0) => {
   try {
     const queryDatos = `
@@ -42,39 +38,35 @@ const obtenerDatosEspecificos = async (limite = 10, offset = 0) => {
     ]);
     return {
       qrs: resultDatos.rows,
-      total: parseInt(resultTotal.rows[0].count)
+      total: parseInt(resultTotal.rows[0].count, 10)
     };
   } catch (error) {
     throw error;
   }
 };
 
-/**
- * Obtener QR de reservas con filtros - VERSIÓN MODIFICADA
- */
 const obtenerQRsFiltrados = async (tipoFiltro, limite = 10, offset = 0) => {
   try {
-    let whereClause = '';
-    let orderClause = 'qr.id_qr ASC';
-    
-    // Definir filtros - SOLO LOS REQUERIDOS
-    switch(tipoFiltro) {
-      case 'verificado_si':
-        whereClause = 'WHERE qr.verificado = true';
-        orderClause = 'qr.fecha_generado DESC';
+    let whereClause = "";
+    let orderClause = "qr.id_qr ASC";
+
+    switch (tipoFiltro) {
+      case "verificado_si":
+        whereClause = "WHERE qr.verificado = true";
+        orderClause = "qr.fecha_generado DESC";
         break;
-      case 'verificado_no':
-        whereClause = 'WHERE qr.verificado = false';
-        orderClause = 'qr.fecha_generado DESC';
+      case "verificado_no":
+        whereClause = "WHERE qr.verificado = false";
+        orderClause = "qr.fecha_generado DESC";
         break;
-      case 'cliente_nombre':
-        orderClause = 'p.nombre ASC, p.apellido ASC';
+      case "cliente_nombre":
+        orderClause = "p.nombre ASC, p.apellido ASC";
         break;
-      case 'fecha_generado':
-        orderClause = 'qr.fecha_generado DESC';
+      case "fecha_generado":
+        orderClause = "qr.fecha_generado DESC";
         break;
       default:
-        orderClause = 'qr.id_qr ASC';
+        orderClause = "qr.id_qr ASC";
     }
 
     const queryDatos = `
@@ -104,16 +96,13 @@ const obtenerQRsFiltrados = async (tipoFiltro, limite = 10, offset = 0) => {
 
     return {
       qrs: resultDatos.rows,
-      total: parseInt(resultTotal.rows[0].count)
+      total: parseInt(resultTotal.rows[0].count, 10)
     };
   } catch (error) {
     throw new Error(`Error al obtener QRs filtrados: ${error.message}`);
   }
 };
 
-/**
- * Buscar QR de reservas por texto en múltiples campos
- */
 const buscarQRs = async (texto, limite = 10, offset = 0) => {
   try {
     const queryDatos = `
@@ -129,7 +118,8 @@ const buscarQRs = async (texto, limite = 10, offset = 0) => {
         p.nombre ILIKE $1 OR 
         p.apellido ILIKE $1 OR 
         ca.nombre ILIKE $1 OR 
-        qr.codigo_qr ILIKE $1
+        qr.codigo_qr ILIKE $1 OR
+        CAST(r.id_reserva AS TEXT) ILIKE $1
       ORDER BY qr.fecha_generado DESC
       LIMIT $2 OFFSET $3
     `;
@@ -145,12 +135,13 @@ const buscarQRs = async (texto, limite = 10, offset = 0) => {
         p.nombre ILIKE $1 OR 
         p.apellido ILIKE $1 OR 
         ca.nombre ILIKE $1 OR 
-        qr.codigo_qr ILIKE $1
+        qr.codigo_qr ILIKE $1 OR
+        CAST(r.id_reserva AS TEXT) ILIKE $1
     `;
-    
-    const sanitizeInput = (input) => input.replace(/[%_\\]/g, '\\$&');
+
+    const sanitizeInput = (input) => input.replace(/[%_\\]/g, "\\$&");
     const terminoBusqueda = `%${sanitizeInput(texto)}%`;
-    
+
     const [resultDatos, resultTotal] = await Promise.all([
       pool.query(queryDatos, [terminoBusqueda, limite, offset]),
       pool.query(queryTotal, [terminoBusqueda])
@@ -158,16 +149,13 @@ const buscarQRs = async (texto, limite = 10, offset = 0) => {
 
     return {
       qrs: resultDatos.rows,
-      total: parseInt(resultTotal.rows[0].count)
+      total: parseInt(resultTotal.rows[0].count, 10)
     };
   } catch (error) {
     throw error;
   }
 };
 
-/**
- * Obtener QR de reserva por ID
- */
 const obtenerQRPorId = async (id) => {
   try {
     const query = `
@@ -188,70 +176,71 @@ const obtenerQRPorId = async (id) => {
   }
 };
 
-/**
- * Crear nuevo QR de reserva - VERSIÓN CORREGIDA Y SIMPLIFICADA
- */
+const obtenerQRPorReserva = async (id_reserva) => {
+  const query = `
+    SELECT *
+    FROM qr_reserva
+    WHERE id_reserva = $1
+    ORDER BY fecha_generado DESC
+    LIMIT 1
+  `;
+  const result = await pool.query(query, [id_reserva]);
+  return result.rows[0] || null;
+};
+
 const crearQR = async (datosQR) => {
   try {
-    // Validaciones básicas
     if (!datosQR.id_reserva || isNaN(datosQR.id_reserva)) {
-      throw new Error('El ID de la reserva es obligatorio y debe ser un número');
+      throw new Error("El ID de la reserva es obligatorio y debe ser un numero");
     }
 
-    // Validar fecha de generación
     if (!datosQR.fecha_generado) {
-      throw new Error('La fecha de generación es obligatoria');
+      throw new Error("La fecha de generacion es obligatoria");
     }
 
     const fechaGenerado = new Date(datosQR.fecha_generado);
     if (isNaN(fechaGenerado.getTime())) {
-      throw new Error('La fecha de generación no es válida');
+      throw new Error("La fecha de generacion no es valida");
     }
 
-    // Validar fecha de expiración si se proporciona
     if (datosQR.fecha_expira) {
       const fechaExpira = new Date(datosQR.fecha_expira);
       if (isNaN(fechaExpira.getTime())) {
-        throw new Error('La fecha de expiración no es válida');
+        throw new Error("La fecha de expiracion no es valida");
       }
       if (fechaExpira <= fechaGenerado) {
-        throw new Error('La fecha de expiración debe ser posterior a la fecha de generación');
+        throw new Error("La fecha de expiracion debe ser posterior a la fecha de generacion");
       }
     }
 
-    // Verificar si la reserva existe
     const reservaResult = await pool.query(
-      'SELECT id_reserva FROM reserva WHERE id_reserva = $1', 
+      "SELECT id_reserva FROM reserva WHERE id_reserva = $1",
       [datosQR.id_reserva]
     );
-    
+
     if (!reservaResult.rows[0]) {
-      throw new Error('La reserva asociada no existe');
+      throw new Error("La reserva asociada no existe");
     }
 
-    // Verificar si ya existe un QR para esta reserva
     const qrExistenteResult = await pool.query(
-      'SELECT id_qr FROM qr_reserva WHERE id_reserva = $1', 
+      "SELECT id_qr FROM qr_reserva WHERE id_reserva = $1",
       [datosQR.id_reserva]
     );
-    
+
     if (qrExistenteResult.rows[0]) {
-      throw new Error('Ya existe un QR asociado a esta reserva');
+      throw new Error("Ya existe un QR asociado a esta reserva");
     }
 
-    // Validar control si se proporciona
     if (datosQR.id_control) {
       const controlResult = await pool.query(
-        'SELECT id_control FROM control WHERE id_control = $1', 
+        "SELECT id_control FROM control WHERE id_control = $1",
         [datosQR.id_control]
       );
-      
       if (!controlResult.rows[0]) {
-        throw new Error('El control asociado no existe');
+        throw new Error("El control asociado no existe");
       }
     }
 
-    // ✅ QUERY CORREGIDA - 8 columnas con 8 valores
     const query = `
       INSERT INTO qr_reserva (
         fecha_generado, 
@@ -267,127 +256,122 @@ const crearQR = async (datosQR) => {
       RETURNING *
     `;
 
-    // ✅ VALORES CORRECTOS - 8 valores para 8 parámetros
     const values = [
-      datosQR.fecha_generado,                    // $1
-      datosQR.fecha_expira || null,              // $2
-      datosQR.qr_url_imagen || null,             // $3
-      datosQR.codigo_qr || null,                 // $4
-      datosQR.estado || 'activo',                // $5
-      datosQR.id_reserva,                        // $6
-      datosQR.id_control || null,                // $7
-      datosQR.verificado !== undefined ? datosQR.verificado : false  // $8
+      datosQR.fecha_generado,
+      datosQR.fecha_expira || null,
+      datosQR.qr_url_imagen || null,
+      datosQR.codigo_qr || null,
+      datosQR.estado || "activo",
+      datosQR.id_reserva,
+      datosQR.id_control || null,
+      datosQR.verificado !== undefined ? datosQR.verificado : false
     ];
 
     const result = await pool.query(query, values);
     return result.rows[0];
-    
   } catch (error) {
-    console.error('❌ Error al crear QR de reserva:', error.message);
+    console.error("Error al crear QR de reserva:", error.message);
     throw new Error(error.message);
   }
 };
 
-/**
- * Actualizar QR de reserva parcialmente
- */
 const actualizarQR = async (id, camposActualizar) => {
   try {
-    const camposPermitidos = ['fecha_generado', 'fecha_expira', 'qr_url_imagen', 'codigo_qr', 'estado', 'id_reserva', 'id_control', 'verificado'];
+    const camposPermitidos = [
+      "fecha_generado",
+      "fecha_expira",
+      "qr_url_imagen",
+      "codigo_qr",
+      "estado",
+      "id_reserva",
+      "id_control",
+      "verificado"
+    ];
 
-    const campos = Object.keys(camposActualizar).filter(key => 
+    const campos = Object.keys(camposActualizar).filter((key) =>
       camposPermitidos.includes(key)
     );
 
     if (campos.length === 0) {
-      throw new Error('No hay campos válidos para actualizar');
+      throw new Error("No hay campos validos para actualizar");
     }
 
-    // Validar fechas
     if (camposActualizar.fecha_generado) {
       const fechaGenerado = new Date(camposActualizar.fecha_generado);
       if (isNaN(fechaGenerado.getTime())) {
-        throw new Error('La fecha de generación no es válida');
+        throw new Error("La fecha de generacion no es valida");
       }
       if (camposActualizar.fecha_expira) {
         const fechaExpira = new Date(camposActualizar.fecha_expira);
         if (isNaN(fechaExpira.getTime())) {
-          throw new Error('La fecha de expiración no es válida');
+          throw new Error("La fecha de expiracion no es valida");
         }
         if (fechaExpira <= fechaGenerado) {
-          throw new Error('La fecha de expiración debe ser posterior a la fecha de generación');
+          throw new Error("La fecha de expiracion debe ser posterior a la fecha de generacion");
         }
       }
     }
 
-    // Validar longitud de campos
     if (camposActualizar.qr_url_imagen && camposActualizar.qr_url_imagen.length > 255) {
-      throw new Error('La URL de la imagen del QR no debe exceder los 255 caracteres');
+      throw new Error("La URL de la imagen del QR no debe exceder los 255 caracteres");
     }
     if (camposActualizar.codigo_qr && camposActualizar.codigo_qr.length > 255) {
-      throw new Error('El código QR no debe exceder los 255 caracteres');
+      throw new Error("El codigo QR no debe exceder los 255 caracteres");
     }
 
-    // Validar estado
-    const estadosValidos = ['activo', 'expirado', 'usado'];
+    const estadosValidos = ["activo", "expirado", "usado"];
     if (camposActualizar.estado && !estadosValidos.includes(camposActualizar.estado)) {
-      throw new Error(`El estado debe ser uno de: ${estadosValidos.join(', ')}`);
+      throw new Error(`El estado debe ser uno de: ${estadosValidos.join(", ")}`);
     }
-    // Validar verificado
-    if (camposActualizar.verificado !== undefined && typeof camposActualizar.verificado !== 'boolean') {
-      throw new Error('El campo verificado debe ser un valor booleano');
+
+    if (camposActualizar.verificado !== undefined && typeof camposActualizar.verificado !== "boolean") {
+      throw new Error("El campo verificado debe ser un valor booleano");
     }
-    // Validar reserva si se proporciona
+
     if (camposActualizar.id_reserva) {
       const reservaQuery = `
         SELECT id_reserva FROM reserva WHERE id_reserva = $1
       `;
       const reservaResult = await pool.query(reservaQuery, [camposActualizar.id_reserva]);
       if (!reservaResult.rows[0]) {
-        throw new Error('La reserva asociada no existe');
+        throw new Error("La reserva asociada no existe");
       }
-      // Verificar unicidad de id_reserva
       const qrExistenteQuery = `
         SELECT id_qr FROM qr_reserva WHERE id_reserva = $1 AND id_qr != $2
       `;
-      const qrExistenteResult = await pool.query(qrExistenteQuery, [camposActualizar.id_reserva, id]);
+      const qrExistenteResult = await pool.query(qrExistenteQuery, [
+        camposActualizar.id_reserva,
+        id
+      ]);
       if (qrExistenteResult.rows[0]) {
-        throw new Error('Ya existe otro QR asociado a esta reserva');
+        throw new Error("Ya existe otro QR asociado a esta reserva");
       }
     }
 
-    // Validar control si se proporciona
     if (camposActualizar.id_control) {
       const controlQuery = `
         SELECT id_control FROM control WHERE id_control = $1
       `;
       const controlResult = await pool.query(controlQuery, [camposActualizar.id_control]);
       if (!controlResult.rows[0]) {
-        throw new Error('El control asociado no existe');
+        throw new Error("El control asociado no existe");
       }
     }
 
-    const setClause = campos.map((campo, index) => `${campo} = $${index + 2}`).join(', ');
-    
-    // ✅ CORRECCIÓN: Manejo correcto de valores booleanos y null
-    const values = campos.map(campo => {
+    const setClause = campos
+      .map((campo, index) => `${campo} = $${index + 2}`)
+      .join(", ");
+
+    const values = campos.map((campo) => {
       const value = camposActualizar[campo];
-      
-      // Para campos booleanos, preservar tanto true como false
-      if (campo === 'verificado') {
-        return value; // Mantener el valor booleano tal cual
+      if (campo === "verificado") {
+        return value;
       }
-      
-      // Para campos de texto, usar null si está vacío
-      if (['qr_url_imagen', 'codigo_qr'].includes(campo)) {
+      if (["qr_url_imagen", "codigo_qr"].includes(campo)) {
         return value || null;
       }
-      
-      // Para otros campos
       return value !== undefined && value !== null ? value : null;
     });
-
-    console.log('🔧 Actualizando QR:', { id, campos, values });
 
     const query = `
       UPDATE qr_reserva 
@@ -403,12 +387,9 @@ const actualizarQR = async (id, camposActualizar) => {
   }
 };
 
-/**
- * Eliminar QR de reserva
- */
 const eliminarQR = async (id) => {
   try {
-    const query = 'DELETE FROM qr_reserva WHERE id_qr = $1 RETURNING id_qr';
+    const query = "DELETE FROM qr_reserva WHERE id_qr = $1 RETURNING id_qr";
     const result = await pool.query(query, [id]);
     return result.rows[0] || null;
   } catch (error) {
@@ -416,355 +397,412 @@ const eliminarQR = async (id) => {
   }
 };
 
-// CONTROLADORES - Manejan las request y response
-
-/**
- * Controlador para GET /datos-especificos
- */
 const obtenerDatosEspecificosController = async (req, res) => {
   try {
-    const limite = parseInt(req.query.limit) || 10;
-    const offset = parseInt(req.query.offset) || 0;
+    const limite = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
 
     const { qrs, total } = await obtenerDatosEspecificos(limite, offset);
-    
-    res.json(respuesta(true, 'QRs de reserva obtenidos correctamente', {
-      qrs,
-      paginacion: { limite, offset, total }
-    }));
+
+    res.json(
+      respuesta(true, "QRs de reserva obtenidos correctamente", {
+        qrs,
+        paginacion: { limite, offset, total }
+      })
+    );
   } catch (error) {
-    console.error('Error en obtenerDatosEspecificos:', error.message);
+    console.error("Error en obtenerDatosEspecificos:", error.message);
     res.status(500).json(respuesta(false, error.message));
   }
 };
 
-/**
- * Controlador para GET /filtro - VERSIÓN MODIFICADA
- */
 const obtenerQRsFiltradosController = async (req, res) => {
   try {
     const { tipo } = req.query;
-    const limite = parseInt(req.query.limit) || 10;
-    const offset = parseInt(req.query.offset) || 0;
+    const limite = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
 
-    // Tipos válidos ACTUALIZADOS - SOLO LOS REQUERIDOS
-    const tiposValidos = ['verificado_si', 'verificado_no', 'cliente_nombre', 'fecha_generado'];
-    
+    const tiposValidos = ["verificado_si", "verificado_no", "cliente_nombre", "fecha_generado"];
+
     if (!tipo || !tiposValidos.includes(tipo)) {
-      return res.status(400).json(respuesta(false, 
-        `El parámetro "tipo" es inválido. Valores permitidos: ${tiposValidos.join(', ')}`
-      ));
+      return res
+        .status(400)
+        .json(
+          respuesta(
+            false,
+            `El parametro "tipo" es invalido. Valores permitidos: ${tiposValidos.join(", ")}`
+          )
+        );
     }
 
     const { qrs, total } = await obtenerQRsFiltrados(tipo, limite, offset);
 
-    res.json(respuesta(true, `QRs de reserva filtrados por ${tipo} obtenidos correctamente`, {
-      qrs,
-      filtro: tipo,
-      paginacion: { limite, offset, total }
-    }));
+    res.json(
+      respuesta(true, `QRs de reserva filtrados por ${tipo} obtenidos correctamente`, {
+        qrs,
+        filtro: tipo,
+        paginacion: { limite, offset, total }
+      })
+    );
   } catch (error) {
-    console.error('Error en obtenerQRsFiltrados:', error.message);
+    console.error("Error en obtenerQRsFiltrados:", error.message);
     res.status(500).json(respuesta(false, error.message));
   }
 };
 
-/**
- * Controlador para GET /buscar
- */
 const buscarQRsController = async (req, res) => {
   try {
     const { q } = req.query;
-    const limite = parseInt(req.query.limit) || 10;
-    const offset = parseInt(req.query.offset) || 0;
+    const limite = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
 
     if (!q) {
-      return res.status(400).json(respuesta(false, 'El parámetro de búsqueda "q" es requerido'));
+      return res
+        .status(400)
+        .json(respuesta(false, 'El parametro de busqueda "q" es requerido'));
     }
 
     const { qrs, total } = await buscarQRs(q, limite, offset);
-    
-    res.json(respuesta(true, 'QRs de reserva obtenidos correctamente', {
-      qrs,
-      paginacion: { limite, offset, total }
-    }));
+
+    res.json(
+      respuesta(true, "QRs de reserva obtenidos correctamente", {
+        qrs,
+        paginacion: { limite, offset, total }
+      })
+    );
   } catch (error) {
-    console.error('Error en buscarQRs:', error.message);
+    console.error("Error en buscarQRs:", error.message);
     res.status(500).json(respuesta(false, error.message));
   }
 };
 
-/**
- * Controlador para GET /dato-individual/:id
- */
 const obtenerQRPorIdController = async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!id || isNaN(id)) {
-      return res.status(400).json(respuesta(false, 'ID de QR no válido'));
+      return res.status(400).json(respuesta(false, "ID de QR no valido"));
     }
 
-    const qr = await obtenerQRPorId(parseInt(id));
+    const qr = await obtenerQRPorId(parseInt(id, 10));
 
     if (!qr) {
-      return res.status(404).json(respuesta(false, 'QR de reserva no encontrado'));
+      return res.status(404).json(respuesta(false, "QR de reserva no encontrado"));
     }
 
-    res.json(respuesta(true, 'QR de reserva obtenido correctamente', { qr }));
+    res.json(respuesta(true, "QR de reserva obtenido correctamente", { qr }));
   } catch (error) {
-    console.error('Error en obtenerQRPorId:', error.message);
+    console.error("Error en obtenerQRPorId:", error.message);
     res.status(500).json(respuesta(false, error.message));
   }
 };
 
-
-
-
-/**
- * Controlador para POST - Crear QR de reserva
- */
 const crearQRController = async (req, res) => {
   let qrPath = null;
   try {
     const datos = { ...req.body };
 
-    console.log('📥 Datos recibidos para crear QR:', datos);
-
-    // Validaciones básicas
-    const camposObligatorios = ['id_reserva', 'fecha_generado', 'estado'];
-    const faltantes = camposObligatorios.filter(campo => !datos[campo] || datos[campo].toString().trim() === '');
+    const camposObligatorios = ["id_reserva", "fecha_generado", "estado"];
+    const faltantes = camposObligatorios.filter(
+      (campo) => !datos[campo] || datos[campo].toString().trim() === ""
+    );
 
     if (faltantes.length > 0) {
-      return res.status(400).json(
-        respuesta(false, `Faltan campos obligatorios: ${faltantes.join(', ')}`)
-      );
+      return res
+        .status(400)
+        .json(
+          respuesta(false, `Faltan campos obligatorios: ${faltantes.join(", ")}`)
+        );
     }
 
-    // Validar estado
-    const estadosValidos = ['activo', 'expirado', 'usado']; // Ajustar según tu enum
+    const estadosValidos = ["activo", "expirado", "usado"];
     if (!estadosValidos.includes(datos.estado)) {
-      return res.status(400).json(
-        respuesta(false, `Estado inválido. Debe ser uno de: ${estadosValidos.join(', ')}`)
-      );
+      return res
+        .status(400)
+        .json(
+          respuesta(
+            false,
+            `Estado invalido. Debe ser uno de: ${estadosValidos.join(", ")}`
+          )
+        );
     }
 
-    // Validar formato de fechas
-    const isValidTimestamp = (ts) => !isNaN(Date.parse(ts));
     if (!isValidTimestamp(datos.fecha_generado)) {
-      return res.status(400).json(
-        respuesta(false, 'La fecha de generación no es válida')
-      );
+      return res
+        .status(400)
+        .json(respuesta(false, "La fecha de generacion no es valida"));
     }
     if (datos.fecha_expira && !isValidTimestamp(datos.fecha_expira)) {
-      return res.status(400).json(
-        respuesta(false, 'La fecha de expiración no es válida')
-      );
+      return res
+        .status(400)
+        .json(respuesta(false, "La fecha de expiracion no es valida"));
     }
 
-    // Generar URL para el QR
-    const qrData = `http://localhost:3000/reserva/dato-individual/${datos.id_reserva}`;
-    const uploadPath = path.join(__dirname, '../Uploads', 'qr');
+    const uploadPath = path.join(__dirname, "..", "..", "Uploads", "qr");
     await fs.mkdir(uploadPath, { recursive: true });
 
-    // Generar nombre único para el archivo QR
-    const now = new Date().toISOString().replace(/T/, '_').replace(/:/g, '-').split('.')[0];
-    const random = Math.floor(Math.random() * 90000 + 10000);
-    const qrFileName = `qr_reserva_${datos.id_reserva}_${now}_${random}.png`;
+    const now = new Date().toISOString().replace(/T/, "_").replace(/:/g, "-").split(".")[0];
+    const randomToken = Math.floor(Math.random() * 90000 + 10000);
+    const codigo = `RESERVA:${datos.id_reserva}:${randomToken}`;
+    const qrFileName = `qr_reserva_${datos.id_reserva}_${now}_${randomToken}.png`;
     qrPath = path.join(uploadPath, qrFileName);
 
-    // Generar y guardar el QR code
-    await QRCode.toFile(qrPath, qrData, {
-      errorCorrectionLevel: 'H',
-      type: 'png',
+    await QRCode.toFile(qrPath, codigo, {
+      errorCorrectionLevel: "H",
+      type: "png",
       width: 300,
       margin: 1
     });
 
-    // Agregar campos al objeto datos
     datos.qr_url_imagen = `/Uploads/qr/${qrFileName}`;
-    datos.codigo_qr = qrData;
+    datos.codigo_qr = codigo;
     datos.verificado = datos.verificado || false;
 
     const nuevoQR = await crearQR(datos);
 
-    console.log('✅ QR creado exitosamente:', nuevoQR);
+    const linkUnirse = `${FRONTEND_BASE_URL}/unirse-reserva?code=${encodeURIComponent(codigo)}`;
 
-    res.status(201).json(
-      respuesta(true, 'QR de reserva creado correctamente', { qr: nuevoQR })
-    );
+    res
+      .status(201)
+      .json(
+        respuesta(true, "QR de reserva creado correctamente", {
+          qr: nuevoQR,
+          link_unirse: linkUnirse
+        })
+      );
   } catch (error) {
-    console.error('❌ Error en crearQRController:', error.message);
+    console.error("Error en crearQRController:", error.message);
 
-    // Limpiar archivo QR en caso de error
     if (qrPath) {
-      await unlinkFile(qrPath).catch(err => {
-        console.warn('⚠️ No se pudo eliminar el archivo QR:', err.message);
+      await unlinkFile(qrPath).catch((err) => {
+        console.warn("No se pudo eliminar el archivo QR:", err.message);
       });
     }
 
-    if (error.code === '23505') {
-      return res.status(400).json(
-        respuesta(false, 'Ya existe un QR asociado a esta reserva')
-      );
+    if (error.code === "23505") {
+      return res
+        .status(400)
+        .json(respuesta(false, "Ya existe un QR asociado a esta reserva"));
     }
 
-    if (error.code === '23503') {
-      return res.status(400).json(
-        respuesta(false, 'La reserva o control asociado no existe')
-      );
+    if (error.code === "23503") {
+      return res
+        .status(400)
+        .json(respuesta(false, "La reserva o control asociado no existe"));
     }
 
-    res.status(500).json(
-      respuesta(false, error.message)
-    );
+    res.status(500).json(respuesta(false, error.message));
   }
 };
 
-/**
- * Controlador para PATCH - Actualizar QR de reserva
- */
-
-// Agregar esta función auxiliar en el backend (antes de los controladores)
-const isValidTimestamp = (ts) => !isNaN(Date.parse(ts));
-
-/**
- * Controlador para PATCH - Actualizar QR de reserva (VERSIÓN CORREGIDA)
- */
 const actualizarQRController = async (req, res) => {
   try {
     const { id } = req.params;
     const camposActualizar = { ...req.body };
 
-    console.log('📥 Datos recibidos para actualizar QR:', { id, camposActualizar });
-
     if (!id || isNaN(id)) {
-      return res.status(400).json(respuesta(false, 'ID de QR no válido'));
+      return res.status(400).json(respuesta(false, "ID de QR no valido"));
     }
 
     if (Object.keys(camposActualizar).length === 0) {
-      return res.status(400).json(respuesta(false, 'No se proporcionaron campos para actualizar'));
+      return res
+        .status(400)
+        .json(respuesta(false, "No se proporcionaron campos para actualizar"));
     }
 
-    // Obtener el QR actual
-    const qrActual = await obtenerQRPorId(parseInt(id));
+    const qrActual = await obtenerQRPorId(parseInt(id, 10));
     if (!qrActual) {
-      return res.status(404).json(respuesta(false, 'QR de reserva no encontrado'));
+      return res.status(404).json(respuesta(false, "QR de reserva no encontrado"));
     }
 
-    // Validar campos proporcionados
     if (camposActualizar.estado) {
-      const estadosValidos = ['activo', 'expirado', 'usado'];
+      const estadosValidos = ["activo", "expirado", "usado"];
       if (!estadosValidos.includes(camposActualizar.estado)) {
-        return res.status(400).json(
-          respuesta(false, `Estado inválido. Debe ser uno de: ${estadosValidos.join(', ')}`)
-        );
+        return res
+          .status(400)
+          .json(
+            respuesta(
+              false,
+              `Estado invalido. Debe ser uno de: ${estadosValidos.join(", ")}`
+            )
+          );
       }
     }
 
-    // Validar formato de fechas
-    if (camposActualizar.fecha_generado && !isValidTimestamp(camposActualizar.fecha_generado)) {
-      return res.status(400).json(
-        respuesta(false, 'La fecha de generación no es válida')
-      );
+    if (
+      camposActualizar.fecha_generado &&
+      !isValidTimestamp(camposActualizar.fecha_generado)
+    ) {
+      return res
+        .status(400)
+        .json(respuesta(false, "La fecha de generacion no es valida"));
     }
     if (camposActualizar.fecha_expira && !isValidTimestamp(camposActualizar.fecha_expira)) {
-      return res.status(400).json(
-        respuesta(false, 'La fecha de expiración no es válida')
-      );
+      return res
+        .status(400)
+        .json(respuesta(false, "La fecha de expiracion no es valida"));
     }
 
-    // ✅ CORRECCIÓN IMPORTANTE: NO regenerar automáticamente el QR en updates
-    // Solo generar nuevo QR si se solicita explícitamente o si cambia la reserva
     if (camposActualizar.regenerar_qr || camposActualizar.id_reserva) {
-      const qrData = `http://localhost:3000/reserva/dato-individual/${camposActualizar.id_reserva || qrActual.id_reserva}`;
-      const uploadPath = path.join(__dirname, '../Uploads', 'qr');
+      const idReservaFinal = camposActualizar.id_reserva || qrActual.id_reserva;
+      const uploadPath = path.join(__dirname, "..", "..", "Uploads", "qr");
       await fs.mkdir(uploadPath, { recursive: true });
 
-      const now = new Date().toISOString().replace(/T/, '_').replace(/:/g, '-').split('.')[0];
-      const random = Math.floor(Math.random() * 90000 + 10000);
-      const qrFileName = `qr_reserva_${camposActualizar.id_reserva || qrActual.id_reserva}_${now}_${random}.png`;
+      const now = new Date().toISOString().replace(/T/, "_").replace(/:/g, "-").split(".")[0];
+
+      let codigo = qrActual.codigo_qr;
+      if (!codigo || !codigo.startsWith("RESERVA:")) {
+        const randomToken = Math.floor(Math.random() * 90000 + 10000);
+        codigo = `RESERVA:${idReservaFinal}:${randomToken}`;
+      }
+
+      const randomFile = Math.floor(Math.random() * 90000 + 10000);
+      const qrFileName = `qr_reserva_${idReservaFinal}_${now}_${randomFile}.png`;
       const qrPath = path.join(uploadPath, qrFileName);
 
-      await QRCode.toFile(qrPath, qrData, {
-        errorCorrectionLevel: 'H',
-        type: 'png',
+      await QRCode.toFile(qrPath, codigo, {
+        errorCorrectionLevel: "H",
+        type: "png",
         width: 300,
         margin: 1
       });
 
-      // Actualizar campos del QR
       camposActualizar.qr_url_imagen = `/Uploads/qr/${qrFileName}`;
-      camposActualizar.codigo_qr = qrData;
-
-      // Eliminar el flag de regenerar QR si existe
+      camposActualizar.codigo_qr = codigo;
       delete camposActualizar.regenerar_qr;
     }
 
-    const qrActualizado = await actualizarQR(parseInt(id), camposActualizar);
+    const qrActualizado = await actualizarQR(parseInt(id, 10), camposActualizar);
 
     if (!qrActualizado) {
-      return res.status(404).json(respuesta(false, 'QR de reserva no encontrado'));
+      return res.status(404).json(respuesta(false, "QR de reserva no encontrado"));
     }
 
-    console.log('✅ QR actualizado exitosamente:', qrActualizado);
-
-    res.json(respuesta(true, 'QR de reserva actualizado correctamente', { qr: qrActualizado }));
+    res.json(
+      respuesta(true, "QR de reserva actualizado correctamente", {
+        qr: qrActualizado
+      })
+    );
   } catch (error) {
-    console.error('❌ Error en actualizarQRController:', error.message);
+    console.error("Error en actualizarQRController:", error.message);
 
-    if (error.code === '23505') {
-      return res.status(400).json(
-        respuesta(false, 'Ya existe un QR asociado a esta reserva')
-      );
+    if (error.code === "23505") {
+      return res
+        .status(400)
+        .json(respuesta(false, "Ya existe un QR asociado a esta reserva"));
     }
 
-    if (error.code === '23503') {
-      return res.status(400).json(
-        respuesta(false, 'La reserva o control asociado no existe')
-      );
+    if (error.code === "23503") {
+      return res
+        .status(400)
+        .json(respuesta(false, "La reserva o control asociado no existe"));
     }
 
     res.status(500).json(respuesta(false, error.message));
   }
 };
 
-
-/**
- * Controlador para DELETE - Eliminar QR de reserva
- */
 const eliminarQRController = async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!id || isNaN(id)) {
-      return res.status(400).json(respuesta(false, 'ID de QR no válido'));
+      return res.status(400).json(respuesta(false, "ID de QR no valido"));
     }
 
-    const qrEliminado = await eliminarQR(parseInt(id));
+    const qrEliminado = await eliminarQR(parseInt(id, 10));
 
     if (!qrEliminado) {
-      return res.status(404).json(respuesta(false, 'QR de reserva no encontrado'));
+      return res.status(404).json(respuesta(false, "QR de reserva no encontrado"));
     }
 
-    res.json(respuesta(true, 'QR de reserva eliminado correctamente'));
+    res.json(respuesta(true, "QR de reserva eliminado correctamente"));
   } catch (error) {
-    console.error('Error en eliminarQR:', error.message);
+    console.error("Error en eliminarQR:", error.message);
     res.status(500).json(respuesta(false, error.message));
   }
 };
 
-// RUTAS
+const regenerarQRPorReservaController = async (req, res) => {
+  try {
+    const { idReserva } = req.params;
 
-// GET endpoints
-router.get('/datos-especificos', obtenerDatosEspecificosController);
-router.get('/filtro', obtenerQRsFiltradosController);
-router.get('/buscar', buscarQRsController);
-router.get('/dato-individual/:id', obtenerQRPorIdController);
+    if (!idReserva || isNaN(idReserva)) {
+      return res.status(400).json(respuesta(false, "idReserva no valido"));
+    }
 
-// POST, PATCH, DELETE endpoints
-router.post('/', crearQRController);
-router.patch('/:id', actualizarQRController);
-router.delete('/:id', eliminarQRController);
+    const idReservaNum = parseInt(idReserva, 10);
+
+    const qrActual = await obtenerQRPorReserva(idReservaNum);
+
+    const ahora = new Date();
+    const fechaGenerado = ahora.toISOString();
+    const fechaExpira = new Date(ahora.getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+    const uploadPath = path.join(__dirname, "..", "..", "Uploads", "qr");
+    await fs.mkdir(uploadPath, { recursive: true });
+
+    let codigo;
+    if (qrActual && qrActual.codigo_qr && qrActual.codigo_qr.startsWith("RESERVA:")) {
+      codigo = qrActual.codigo_qr;
+    } else {
+      const tokenNuevo = Math.floor(Math.random() * 90000 + 10000);
+      codigo = `RESERVA:${idReservaNum}:${tokenNuevo}`;
+    }
+
+    const stamp = fechaGenerado
+      .replace(/T/, "_")
+      .replace(/:/g, "-")
+      .split(".")[0];
+    const randomFile = Math.floor(Math.random() * 90000 + 10000);
+    const fileName = `qr_reserva_${idReservaNum}_${stamp}_${randomFile}.png`;
+    const filePath = path.join(uploadPath, fileName);
+
+    await QRCode.toFile(filePath, codigo, {
+      errorCorrectionLevel: "H",
+      type: "png",
+      width: 300,
+      margin: 1
+    });
+
+    const payload = {
+      fecha_generado: fechaGenerado,
+      fecha_expira: fechaExpira,
+      qr_url_imagen: `/Uploads/qr/${fileName}`,
+      codigo_qr: codigo,
+      estado: "activo",
+      verificado: false
+    };
+
+    let qrResult;
+
+    if (qrActual) {
+      qrResult = await actualizarQR(qrActual.id_qr, payload);
+    } else {
+      qrResult = await crearQR({
+        id_reserva: idReservaNum,
+        ...payload
+      });
+    }
+
+    return res.json(
+      respuesta(true, "QR regenerado correctamente", { qr: qrResult })
+    );
+  } catch (error) {
+    console.error("Error en regenerarQRPorReservaController:", error.message);
+    return res.status(500).json(respuesta(false, error.message));
+  }
+};
+
+router.get("/datos-especificos", obtenerDatosEspecificosController);
+router.get("/filtro", obtenerQRsFiltradosController);
+router.get("/buscar", buscarQRsController);
+router.get("/dato-individual/:id", obtenerQRPorIdController);
+
+router.post("/", crearQRController);
+router.patch("/:id", actualizarQRController);
+router.delete("/:id", eliminarQRController);
+
+router.post("/regenerar-por-reserva/:idReserva", regenerarQRPorReservaController);
 
 module.exports = router;

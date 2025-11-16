@@ -116,6 +116,23 @@ const Header = () => {
     { valor: 'cliente', etiqueta: 'Cliente' },
   ];
 
+  const [roleRequest, setRoleRequest] = useState({
+    rol: '',
+    id_espacio: '',
+    motivo: ''
+  });
+  const [roleRequestLoading, setRoleRequestLoading] = useState(false);
+  const [roleRequestError, setRoleRequestError] = useState(null);
+  const [roleRequestSuccess, setRoleRequestSuccess] = useState(null);
+
+  const userRolesSet = new Set(
+    (user?.roles ?? []).map(r => (r.rol || '').toLowerCase())
+  );
+
+  const availableRoles = rolesDisponibles.filter(r => !userRolesSet.has(r.valor));
+
+
+
   const fetchEspaciosLibres = async () => {
     setEspaciosLoading(true);
     setEspaciosError(null);
@@ -284,62 +301,95 @@ const Header = () => {
 
   // Handle registration
   const handleRegister = async (e) => {
-  e.preventDefault();
-  setRegisterLoading(true);
-  setRegisterError(null);
+    e.preventDefault();
+    setRegisterLoading(true);
+    setRegisterError(null);
 
-  if (registerData.contrasena !== registerData.confirmarContrasena) {
-    setRegisterError('Las contrasenas no coinciden');
-    setRegisterLoading(false);
-    return;
-  }
+    // Validación contraseñas
+    if (registerData.contrasena !== registerData.confirmarContrasena) {
+      setRegisterError('Las contrasenas no coinciden');
+      setRegisterLoading(false);
+      return;
+    }
 
-  const wantsAdmin = (registerData.rol_agregar || 'cliente') === 'admin_esp_dep';
-  if (wantsAdmin && !registerData.id_espacio) {
-    setRegisterError('Debe seleccionar un espacio deportivo');
-    setRegisterLoading(false);
-    return;
-  }
+    const rol = registerData.rol_agregar || 'cliente';
+    const wantsAdmin = rol === 'admin_esp_dep';
 
-  try {
-    const payload = {
-      usuario: registerData.usuario,
-      correo: registerData.correo,
-      contrasena: registerData.contrasena,
-      rol: registerData.rol_agregar || 'cliente',
-      ...(wantsAdmin ? {
-        id_espacio: Number(registerData.id_espacio),
-        motivo: (registerData.motivo || '').trim()
-      } : {})
-    };
+    // Validación extra para admin_esp_dep
+    if (wantsAdmin && !registerData.id_espacio) {
+      setRegisterError('Debe seleccionar un espacio deportivo');
+      setRegisterLoading(false);
+      return;
+    }
 
-    const res = await api.post('/usuario/', payload);
-    const ok = res.data?.exito === true;
-    if (!ok) throw new Error(res.data?.mensaje || 'Registro fallido');
+    try {
+      // =============================
+      // 1) CREAR USUARIO
+      // =============================
+      const payloadUser = {
+        usuario: registerData.usuario,
+        correo: registerData.correo,
+        contrasena: registerData.contrasena,
+        rol: 'cliente' // siempre ingresa como cliente primero
+      };
 
-    setShowRegisterModal(false);
-    setSubmissionMessage(
-      wantsAdmin
-        ? 'Solicitud creada. Te avisaremos por correo cuando se revise.'
-        : 'Registro completado. Bienvenido.'
-    );
-    setShowSubmissionModal(true);
-    setRegisterData({
-      usuario: '',
-      correo: '',
-      contrasena: '',
-      confirmarContrasena: '',
-      rol_agregar: 'cliente',
-      id_espacio: '',
-      motivo: ''
-    });
-    setShowRoleSection(false);
-  } catch (err) {
-    setRegisterError(err?.message || 'Error de conexion');
-  } finally {
-    setRegisterLoading(false);
-  }
-};
+      const res = await api.post('/usuario/', payloadUser);
+      const ok = res.data?.exito === true;
+
+      if (!ok) throw new Error(res.data?.mensaje || 'Registro fallido');
+
+      const newUserId = res.data?.datos?.usuario?.id_persona;
+      if (!newUserId) throw new Error("No se recibio ID del usuario creado");
+
+      // =============================
+      // 2) CREAR SOLICITUD DE ROL
+      // =============================
+      if (rol === 'admin_esp_dep') {
+        // solicitud especial
+        await api.post('/solicitud-admin-esp-dep/', {
+          id_usuario: newUserId,
+          id_espacio: Number(registerData.id_espacio),
+          motivo: registerData.motivo || null
+        });
+      }
+
+      else if (rol === 'control' || rol === 'encargado') {
+        // solicitud normal de rol
+        await api.post('/solicitud-rol/', {
+          id_usuario: newUserId,
+          rol,
+          motivo: registerData.motivo || null
+        });
+      }
+
+      // =============================
+      // 3) MOSTRAR MENSAJE EXITOSO
+      // =============================
+      setShowRegisterModal(false);
+      setSubmissionMessage(
+        rol === 'cliente'
+          ? 'Registro completado. Bienvenido.'
+          : 'Solicitud creada. Te avisaremos por correo cuando se revise.'
+      );
+      setShowSubmissionModal(true);
+
+      setRegisterData({
+        usuario: '',
+        correo: '',
+        contrasena: '',
+        confirmarContrasena: '',
+        rol_agregar: 'cliente',
+        id_espacio: '',
+        motivo: ''
+      });
+      setShowRoleSection(false);
+
+    } catch (err) {
+      setRegisterError(err?.message || 'Error de conexion');
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
 
   // Handle logout
   const handleLogout = () => {
@@ -506,6 +556,84 @@ const Header = () => {
 
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
+  const handleRoleRequestChange = (e) => {
+    const { name, value } = e.target;
+
+    if (name === 'rol') {
+      const v = value;
+      setRoleRequest((prev) => ({
+        ...prev,
+        rol: v,
+        id_espacio: v === 'admin_esp_dep' ? prev.id_espacio : '',
+      }));
+      setRoleRequestError(null);
+      setRoleRequestSuccess(null);
+      if (v === 'admin_esp_dep' && espaciosLibres.length === 0) {
+        fetchEspaciosLibres();
+      }
+      return;
+    }
+
+    setRoleRequest((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleSendRoleRequest = async () => {
+    if (!user) return;
+
+    if (!roleRequest.rol) {
+      setRoleRequestError('Debes seleccionar un rol');
+      return;
+    }
+
+    setRoleRequestLoading(true);
+    setRoleRequestError(null);
+    setRoleRequestSuccess(null);
+
+    try {
+      if (roleRequest.rol === 'admin_esp_dep') {
+        if (!roleRequest.id_espacio) {
+          setRoleRequestError('Debes seleccionar un espacio');
+          setRoleRequestLoading(false);
+          return;
+        }
+
+        const payload = {
+          id_usuario: user.id_persona,
+          id_espacio: Number(roleRequest.id_espacio),
+          motivo: roleRequest.motivo || null,
+        };
+
+        const res = await api.post('/solicitud-admin-esp-dep/', payload);
+        const ok = res.data?.exito === true;
+        if (!ok) throw new Error(res.data?.mensaje || 'No se pudo crear la solicitud');
+
+        setRoleRequestSuccess('Solicitud enviada correctamente');
+      } else if (roleRequest.rol === 'control' || roleRequest.rol === 'encargado') {
+        const payload = {
+          id_usuario: user.id_persona,
+          rol: roleRequest.rol,
+          motivo: roleRequest.motivo || null,
+        };
+
+        const res = await api.post('/solicitud-rol/', payload);
+        const ok = res.data?.exito === true;
+        if (!ok) throw new Error(res.data?.mensaje || 'No se pudo crear la solicitud');
+
+        setRoleRequestSuccess('Solicitud enviada correctamente');
+      } else {
+        setRoleRequestError('Rol no soportado');
+      }
+    } catch (err) {
+      setRoleRequestError(err?.message || 'Error al enviar solicitud');
+    } finally {
+      setRoleRequestLoading(false);
+    }
+  };
+
 
 
   // Handle file change for profile image
@@ -676,6 +804,13 @@ const Header = () => {
             >
               Canchas
             </Link>
+            <Link
+              to="/mis-reservas"
+              className="bg-[#01CD6C] hover:bg-[#00b359] text-[#FFFFFF] font-semibold py-2 px-3 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-50"
+              aria-label="Ir a Canchas"
+            >
+              Mis Reservas
+            </Link>
             {!isLoggedIn && (
               <button
                 onClick={() => setShowRegisterModal(true)}
@@ -717,42 +852,42 @@ const Header = () => {
                 </button>
 
                 {showMenu && (
-  <div className="absolute right-0 mt-2 w-56 bg-[#FFFFFF] rounded-lg shadow-lg z-50">
-    <div className="px-4 py-3 text-[#23475F] font-medium border-b border-gray-200">
-      {user?.nombre || 'Sin nombre'} {user?.apellido || 'Sin apellido'}
-    </div>
+                  <div className="absolute right-0 mt-2 w-56 bg-[#FFFFFF] rounded-lg shadow-lg z-50">
+                    <div className="px-4 py-3 text-[#23475F] font-medium border-b border-gray-200">
+                      {user?.nombre || 'Sin nombre'} {user?.apellido || 'Sin apellido'}
+                    </div>
 
-    {/* paneles segun roles */}
-    {getPanelEntries(user).map((p, idx) => (
-      <button
-        key={idx}
-        onClick={() => { setShowMenu(false); navigate(p.path); }}
-        className="block w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#01CD6C] hover:text-white transition-colors duration-200"
-      >
-        {p.label}
-      </button>
-    ))}
+                    {/* paneles segun roles */}
+                    {getPanelEntries(user).map((p, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => { setShowMenu(false); navigate(p.path); }}
+                        className="block w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#01CD6C] hover:text-white transition-colors duration-200"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
 
-    <button
-      onClick={openProfileModal}
-      className="block w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#01CD6C] hover:text-white transition-colors duration-200"
-    >
-      Mi Perfil
-    </button>
-    <button
-      onClick={openEditProfileModal}
-      className="block w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#01CD6C] hover:text-white transition-colors duration-200"
-    >
-      Editar Mi Perfil
-    </button>
-    <button
-      onClick={handleLogout}
-      className="w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#A31621] hover:text-white transition-colors duration-200"
-    >
-      Cerrar Sesion
-    </button>
-  </div>
-)}
+                    <button
+                      onClick={openProfileModal}
+                      className="block w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#01CD6C] hover:text-white transition-colors duration-200"
+                    >
+                      Mi Perfil
+                    </button>
+                    <button
+                      onClick={openEditProfileModal}
+                      className="block w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#01CD6C] hover:text-white transition-colors duration-200"
+                    >
+                      Editar Mi Perfil
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#A31621] hover:text-white transition-colors duration-200"
+                    >
+                      Cerrar Sesion
+                    </button>
+                  </div>
+                )}
 
               </div>
             ) : (
@@ -1380,6 +1515,123 @@ const Header = () => {
                     Solo completa estos campos si deseas cambiar tu contraseña
                   </p>
                 </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                <h4 className="text-lg font-semibold text-[#23475F] mb-3 flex items-center">
+                  <svg className="w-5 h-5 mr-2 text-[#01CD6C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7h3m0 0h3m-3 0v3m-6 4h3m0 0h3m-3 0v3M5 7h6m-6 4h3m-3 4h6" />
+                  </svg>
+                  Mandar solicitud para ser
+                </h4>
+
+                {availableRoles.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Ya tienes todos los roles activos.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-[#23475F]">
+                          Rol a solicitar
+                        </label>
+                        <select
+                          name="rol"
+                          value={roleRequest.rol}
+                          onChange={handleRoleRequestChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-[#01CD6C] focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-20 transition-all duration-200 bg-white appearance-none cursor-pointer"
+                        >
+                          <option value="">Selecciona un rol</option>
+                          {availableRoles
+                            .filter((r) => r.valor !== 'cliente')
+                            .map((r) => (
+                              <option key={r.valor} value={r.valor}>
+                                {r.etiqueta}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      {roleRequest.rol === 'admin_esp_dep' && (
+                        <div className="space-y-2">
+                          <label className="block text-sm font-medium text-[#23475F]">
+                            Espacio deportivo
+                          </label>
+                          {espaciosLoading ? (
+                            <div className="text-sm text-gray-500">Cargando espacios...</div>
+                          ) : espaciosError ? (
+                            <div className="text-sm text-[#A31621]">{espaciosError}</div>
+                          ) : (
+                            <select
+                              name="id_espacio"
+                              value={roleRequest.id_espacio}
+                              onChange={handleRoleRequestChange}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-[#01CD6C] focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-20 transition-all duration-200 bg-white appearance-none cursor-pointer"
+                            >
+                              <option value="">Selecciona un espacio</option>
+                              {espaciosLibres.map((e) => (
+                                <option key={e.id_espacio} value={e.id_espacio}>
+                                  {e.nombre} {e.direccion ? `- ${e.direccion}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      <label className="block text-sm font-medium text-[#23475F]">
+                        Motivo de solicitud
+                      </label>
+                      <textarea
+                        name="motivo"
+                        value={roleRequest.motivo}
+                        onChange={handleRoleRequestChange}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-[#01CD6C] focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-20 transition-all duration-200 bg-white"
+                        placeholder="Explica por que solicitas este rol"
+                      />
+                    </div>
+
+                    {roleRequestError && (
+                      <p className="mt-3 text-sm text-[#A31621]">{roleRequestError}</p>
+                    )}
+                    {roleRequestSuccess && (
+                      <p className="mt-3 text-sm text-green-600">{roleRequestSuccess}</p>
+                    )}
+
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleSendRoleRequest}
+                        disabled={roleRequestLoading || !roleRequest.rol}
+                        className={`px-5 py-2 rounded-lg text-white font-semibold shadow-md flex items-center gap-2 ${roleRequestLoading || !roleRequest.rol
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-[#01CD6C] hover:bg-[#00b359]'
+                          }`}
+                      >
+                        {roleRequestLoading ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Enviando...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h8m0 0l-3-3m3 3l-3 3" />
+                            </svg>
+                            Mandar solicitud
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Action Buttons */}

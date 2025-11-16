@@ -167,70 +167,100 @@ const obtenerPagoPorId = async (id) => {
  */
 const crearPago = async (datosPago) => {
   try {
-    // Validaciones básicas
     if (!datosPago.id_reserva || isNaN(datosPago.id_reserva)) {
-      throw new Error('El ID de la reserva es obligatorio y debe ser un número');
+      throw new Error("El ID de la reserva es obligatorio y debe ser un numero");
     }
     if (!datosPago.monto || isNaN(datosPago.monto) || datosPago.monto <= 0) {
-      throw new Error('El monto es obligatorio y debe ser un número positivo');
+      throw new Error("El monto es obligatorio y debe ser un numero positivo");
     }
     if (!datosPago.metodo_pago) {
-      throw new Error('El método de pago es obligatorio');
+      throw new Error("El metodo de pago es obligatorio");
     }
 
-    // Validar fecha_pago si se proporciona
     if (datosPago.fecha_pago) {
       const fechaPago = new Date(datosPago.fecha_pago);
       if (isNaN(fechaPago.getTime())) {
-        throw new Error('La fecha de pago no es válida');
+        throw new Error("La fecha de pago no es valida");
       }
     }
 
-    // Validar metodo_pago
-    const metodosValidos = ['tarjeta', 'efectivo', 'transferencia', 'QR'];
+    const metodosValidos = ["tarjeta", "efectivo", "transferencia", "QR"];
     if (!metodosValidos.includes(datosPago.metodo_pago)) {
-      throw new Error(`El método de pago debe ser uno de: ${metodosValidos.join(', ')}`);
+      throw new Error(`El metodo de pago debe ser uno de: ${metodosValidos.join(", ")}`);
     }
 
-    // Verificar si la reserva existe
     const reservaQuery = `
-      SELECT id_reserva, monto_total, saldo_pendiente 
-      FROM reserva 
+      SELECT id_reserva, monto_total, saldo_pendiente, estado
+      FROM reserva
       WHERE id_reserva = $1
     `;
     const reservaResult = await pool.query(reservaQuery, [datosPago.id_reserva]);
     if (!reservaResult.rows[0]) {
-      throw new Error('La reserva asociada no existe');
+      throw new Error("La reserva asociada no existe");
     }
 
-    // Validar que el monto no exceda el saldo pendiente
-    const { monto_total, saldo_pendiente } = reservaResult.rows[0];
-    if (saldo_pendiente !== null && datosPago.monto > saldo_pendiente) {
-      throw new Error('El monto del pago excede el saldo pendiente de la reserva');
+    const { monto_total, saldo_pendiente, estado } = reservaResult.rows[0];
+
+    if (estado === "cancelada") {
+      throw new Error("La reserva esta cancelada y no acepta pagos");
+    }
+    if (estado === "pagada") {
+      throw new Error("La reserva ya esta pagada");
     }
 
-    const query = `
+    const saldoActual = saldo_pendiente === null ? monto_total : saldo_pendiente;
+
+    if (datosPago.monto > saldoActual) {
+      throw new Error("El monto del pago excede el saldo pendiente de la reserva");
+    }
+
+    const pagosCountResult = await pool.query(
+      "SELECT COUNT(*) AS total FROM pago WHERE id_reserva = $1",
+      [datosPago.id_reserva]
+    );
+    const pagosPrevios = parseInt(pagosCountResult.rows[0].total, 10) || 0;
+
+    const insertQuery = `
       INSERT INTO pago (
         monto, metodo_pago, fecha_pago, id_reserva
       ) 
       VALUES ($1, $2, $3, $4)
       RETURNING *
     `;
-
-    const values = [
+    const insertValues = [
       datosPago.monto,
       datosPago.metodo_pago,
-      datosPago.fecha_pago || new Date().toISOString().split('T')[0],
+      datosPago.fecha_pago || new Date().toISOString().split("T")[0],
       datosPago.id_reserva
     ];
 
-    const { rows } = await pool.query(query, values);
-    return rows[0];
+    const insertResult = await pool.query(insertQuery, insertValues);
+    const pagoCreado = insertResult.rows[0];
+
+    const nuevoSaldo = Math.max(0, saldoActual - datosPago.monto);
+    const pagosDespues = pagosPrevios + 1;
+
+    let nuevoEstado = estado;
+    if (nuevoSaldo <= 0) {
+      nuevoEstado = "pagada";
+    } else if (pagosDespues >= 1 && nuevoSaldo < monto_total) {
+      nuevoEstado = "en_cuotas";
+    } else {
+      nuevoEstado = "pendiente";
+    }
+
+    await pool.query(
+      "UPDATE reserva SET saldo_pendiente = $1, estado = $2 WHERE id_reserva = $3",
+      [nuevoSaldo, nuevoEstado, datosPago.id_reserva]
+    );
+
+    return pagoCreado;
   } catch (error) {
-    console.error('Error al crear pago:', error.message);
+    console.error("Error al crear pago:", error.message);
     throw new Error(error.message);
   }
 };
+
 
 /**
  * Actualizar pago parcialmente

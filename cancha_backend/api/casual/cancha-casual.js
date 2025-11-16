@@ -225,7 +225,13 @@ const obtenerCanchasFiltradas = async (tipoFiltro, limite = 10, offset = 0) => {
 const obtenerCanchaPorId = async (id) => {
   try {
     const query = `
-      SELECT c.*, e.id_espacio, e.nombre AS espacio_nombre, e.direccion AS espacio_direccion
+      SELECT 
+        c.*, 
+        e.id_espacio, 
+        e.nombre AS espacio_nombre, 
+        e.direccion AS espacio_direccion,
+        e.horario_apertura,
+        e.horario_cierre
       FROM cancha c
       JOIN espacio_deportivo e ON c.id_espacio = e.id_espacio
       WHERE c.id_cancha = $1
@@ -236,6 +242,7 @@ const obtenerCanchaPorId = async (id) => {
     throw new Error(`Error al obtener cancha por ID: ${error.message}`);
   }
 };
+
 
 /**
  * Obtener disciplinas de una cancha específica
@@ -337,7 +344,7 @@ const obtenerCanchaPorIdController = async (req, res) => {
     const { id } = req.params;
 
     if (!id || isNaN(id)) {
-      return res.status(400).json(respuesta(false, 'ID de cancha no válido'));
+      return res.status(400).json(respuesta(false, 'ID de cancha no valido'));
     }
 
     const cancha = await obtenerCanchaPorId(parseInt(id));
@@ -345,17 +352,19 @@ const obtenerCanchaPorIdController = async (req, res) => {
       return res.status(404).json(respuesta(false, 'Cancha no encontrada'));
     }
 
-    // Obtener disciplinas de la cancha
     const disciplinas = await obtenerDisciplinasCancha(parseInt(id));
 
-    res.json(respuesta(true, 'Cancha obtenida correctamente', {
-      cancha: { ...cancha, disciplinas },
-    }));
+    res.json(
+      respuesta(true, 'Cancha obtenida correctamente', {
+        cancha: { ...cancha, disciplinas },
+      })
+    );
   } catch (error) {
     console.error('Error en obtenerCanchaPorId:', error.message);
     res.status(500).json(respuesta(false, error.message));
   }
 };
+
 
 // RUTAS ACTUALIZADAS - Sin parámetro de espacio
 router.get('/datos-especificos', obtenerTodasLasCanchasController);
@@ -364,3 +373,44 @@ router.get('/filtro', obtenerCanchasFiltradasController);
 router.get('/dato-individual/:id', obtenerCanchaPorIdController);
 
 module.exports = router;
+
+/*
+const obtenerResenasPorCancha = async (id_cancha, limite = 10, offset = 0) => {
+  const queryDatos = `
+    SELECT re.id_resena,
+           re.estrellas,
+           re.comentario,
+           re.fecha_creacion,
+           re.verificado,
+           re.id_reserva,
+           re.id_cliente,
+           re.id_cancha,
+           p.nombre AS cliente_nombre,
+           p.apellido AS cliente_apellido
+    FROM resena re
+    JOIN cliente c ON re.id_cliente = c.id_cliente
+    JOIN usuario p ON c.id_cliente = p.id_persona
+    WHERE re.id_cancha = $1
+      AND re.verificado = true
+    ORDER BY re.fecha_creacion DESC
+    LIMIT $2 OFFSET $3
+  `;
+
+  const queryTotal = `
+    SELECT COUNT(*)
+    FROM resena
+    WHERE id_cancha = $1
+      AND verificado = true
+  `;
+
+  const [datos, total] = await Promise.all([
+    pool.query(queryDatos, [id_cancha, limite, offset]),
+    pool.query(queryTotal, [id_cancha])
+  ]);
+
+  return {
+    resenas: datos.rows,
+    total: parseInt(total.rows[0].count)
+  };
+};
+ */

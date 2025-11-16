@@ -27,6 +27,7 @@ const registroRoutes = require('./api/casual/registro');
 const espacio_deportivo_casualRoutes = require('./api/casual/espacio-deportivo-casual');
 const cancha_espacio_casualRoutes = require('./api/casual/cancha-espacio-casual');
 const cancha_casualRoutes = require('./api/casual/cancha-casual');
+const resena_casualRoutes = require('./api/casual/resena-publica');
 
 // rutas según roles ya definidos
 const espacio_adminRoutes = require('./api/roles/admin/espacio_admin');
@@ -37,11 +38,16 @@ const resena_adminRoutes = require('./api/roles/admin/resena_admin');
 const dashboard_adminRoutes = require('./api/roles/admin/dashboard_admin');
 const pago_adminRoutes = require('./api/roles/admin/pago_admin');
 const solicitud_admin_esp_depRoutes = require('./api/roles/admin/solicitud_admin');
+const solicitud_rolRoutes = require('./api/roles/solicitud_rol');
+
+const unirse_reservaRoutes = require('./api/roles/deportista/unirse_reserva');
+const reserva_deportistaRoutes = require('./api/roles/deportista/reserva_deportista');
+
+const resena_clienteRoutes = require('./api/roles/cliente/resena_cliente');
+const reserva_clienteRoutes = require('./api/roles/cliente/reserva_cliente');
 
 const qr_controlRoutes = require('./api/roles/qr_control');
 const reporte_encargadoRoutes = require('./api/roles/reporte_encargado');
-const resena_clienteRoutes = require('./api/roles/resena_cliente');
-const reserva_clienteRoutes = require('./api/roles/reserva_cliente');
 
 
 const x_imagenRoutes = require('./api/x_imagen');
@@ -67,12 +73,12 @@ try {
   app.use('/disciplina', disciplinaRoutes);
   app.use('/reserva', reservaRoutes);
   app.use('/pago', pagoRoutes);
-  app.use('/qr_reserva', qr_reservaRoutes);
+  app.use('/qr-reserva', qr_reservaRoutes);
   app.use('/control', controlRoutes);
   app.use('/reporte_incidencia', reporte_incidenciaRoutes);
   app.use('/resena', resenaRoutes);
   app.use('/empresa', empresaRoutes);
-  app.use('/reserva_horario', reserva_horarioRoutes);
+  app.use('/reserva-horario', reserva_horarioRoutes);
   app.use('/se_practica', se_practicaRoutes);
   app.use('/participa_en', participa_enRoutes);
 
@@ -80,6 +86,7 @@ try {
   app.use('/espacio-deportivo-casual', espacio_deportivo_casualRoutes);
   app.use('/cancha-espacio-casual', cancha_espacio_casualRoutes);
   app.use('/cancha-casual', cancha_casualRoutes);
+  app.use('/resena-casual', resena_casualRoutes);
   app.use('/registro', registroRoutes);
 
   // ubicacion según roles ya definidos
@@ -95,6 +102,10 @@ try {
   app.use('/resena-cliente', resena_clienteRoutes);
   app.use('/reserva-cliente', reserva_clienteRoutes);
   app.use('/solicitud-admin-esp-dep', solicitud_admin_esp_depRoutes);
+  app.use('/solicitud-rol', solicitud_rolRoutes);
+
+  app.use('/unirse-reserva', unirse_reservaRoutes);
+  app.use('/reserva-deportista', reserva_deportistaRoutes);
 
   app.use('/x_imagen', x_imagenRoutes)
 
