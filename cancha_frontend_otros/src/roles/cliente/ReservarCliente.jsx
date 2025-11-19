@@ -290,11 +290,11 @@ const ReservarCliente = () => {
             setSuccess('Reserva creada correctamente');
 
             try {
-                const ahora = new Date();
-                const expira = new Date(ahora.getTime() + 24 * 60 * 60 * 1000);
+                const reservaDate = new Date(fechaReserva); // Fecha de la reserva
+                const expira = new Date(reservaDate.getTime() + 24 * 60 * 60 * 1000); // Expira 24 horas después de la fecha de reserva
                 const bodyQr = {
                     id_reserva: idReserva,
-                    fecha_generado: ahora.toISOString(),
+                    fecha_generado: new Date().toISOString(),
                     fecha_expira: expira.toISOString(),
                     estado: 'activo',
                 };

@@ -518,7 +518,7 @@ const MisReservasCliente = () => {
                     : "bg-[#E2E8F0] text-[#0F2634] hover:bg-[#CBD5E1]")
                 }
               >
-                Como deportista
+                Como invitado
               </button>
             </div>
           </div>

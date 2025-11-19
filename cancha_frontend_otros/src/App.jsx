@@ -123,7 +123,7 @@ const AppContent = () => {
 
       {/* Contenido principal con padding-top para evitar superposición */}
       <div className="pt-24">
-        <div className="max-w-7xl mx-auto p-6">
+        <div className="max-w-8xl mx-auto p-6">
           {/* Sección de Servicios - 3 columnas */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
             {/* Servicio 1 */}
@@ -269,7 +269,7 @@ const AppContent = () => {
                   <span className="font-medium">Administrador:</span> {company.admin_nombre} {company.admin_apellido}
                 </p>
                 <p className="text-[#01CD6C] mb-2">
-                  <span className="font-medium">Email Admin:</span> {company.admin_correo || 'No disponible'}
+                  <span className="font-medium">Email Administrador:</span> {company.admin_correo || 'No disponible'}
                 </p>
               </div>
               <div className="flex flex-col justify-center space-y-3">
@@ -338,6 +338,22 @@ const App = () => {
         <Route path="/unirse-reserva" element={<UnirseReserva />} />
         <Route
           path="/administrador/*"
+          element={
+            <ProtectedRoute>
+              <PaginaPrincipal />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/encargado/*"
+          element={
+            <ProtectedRoute>
+              <PaginaPrincipal />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/control/*"
           element={
             <ProtectedRoute>
               <PaginaPrincipal />

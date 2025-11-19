@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import Solicitud from './pages/Solicitud';
 import Usuario from './pages/Usuario';
 import Administrador from './pages/Administrador';
 import Cliente from './pages/Cliente';
@@ -22,9 +21,6 @@ import Se_Practica from './pages/Se_Practica';
 import Participa_En from './pages/Participa_En';
 
 // importa por roles
-import QRControl from './roles/QRControl';
-import ReporteEncargado from './roles/ReporteEncargado';
-
 import EspacioDeportivoAdmin from './roles/admin/EspacioDeportivoAdmin';
 import CanchaAdmin from './roles/admin/CanchaAdmin';
 import ReservaAdmin from './roles/admin/ReservaAdmin';
@@ -33,12 +29,24 @@ import ResenaAdmin from './roles/admin/ResenaAdmin';
 import EspaciosView from './roles/admin/EspaciosView';
 import CalendarioReservasAdmin from './roles/admin/CalendarioReservasAdmin';
 import PagoAdmin from './roles/admin/PagoAdmin';
+import SolicitudAdminEspDep from './pages/SolicitudAdminEspDep';
+import SolicitudEncargado from './pages/SolicitudEncargado';
+import SolicitudControl from './pages/SolicitudControl';
+import Reporte_incidenciaAdmin from './roles/admin/Reporte_IncidenciaAdmin';
+import EncargadoAdmin from './roles/admin/EncargadoAdmin';
+import ControlAdmin from './roles/admin/ControlAdmin';
+import Espacio_DeportivoEncargado from './roles/encargado/Espacio_DeportivoEncargado';
+import CanchaEncargado from './roles/encargado/CanchaEncargado';
+import ReservaEncargado from './roles/encargado/ReservaEncargado';
+import Reporte_IncidenciaEncargado from './roles/encargado/Reporte_IncidenciaEncargado';
+import QR_AccesoEncargado from './roles/control/QR_AccesoEncargado';
 
 // Configuración de rutas para cada rol
 const roleRoutesConfig = {
   ADMINISTRADOR: [
-    { id: 'solicitud_admin_esp', label: 'Solicitudes Admin Esp', icon: '📑', path: 'solicitud-admin-esp', component: () => <Solicitud mode="admin_esp_dep" /> },
-    { id: 'solicitud_rol', label: 'Solicitudes Encargado/Control', icon: '🧩', path: 'solicitud-rol', component: () => <Solicitud mode="rol" /> },
+    { id: 'solicitud_admin_esp', label: 'Solicitudes Admin Esp', icon: '📑', path: 'solicitud-admin-esp', component: SolicitudAdminEspDep },
+    { id: 'solicitud_encargado', label: 'Solicitudes Encargado', icon: '🧩', path: 'solicitud-encargado', component: SolicitudEncargado },
+    { id: 'solicitud_control', label: 'Solicitudes Control', icon: '🧩', path: 'solicitud-control', component: SolicitudControl },
     { id: 'usuario', label: 'Usuario', icon: '👤', path: 'usuario', component: Usuario },
     { id: 'administrador', label: 'Administrador', icon: '👤', path: 'administrador', component: Administrador },
     { id: 'admin_esp_dep', label: 'Admin Esp Dep', icon: '⚙️', path: 'admin-esp-dep', component: Admin_Esp_Dep },
@@ -68,20 +76,20 @@ const roleRoutesConfig = {
     { id: 'reserva_horario', label: 'Reserva Horario', icon: '⏰', path: 'reserva-horario', component: Reserva_HorarioAdmin },
     { id: 'pago', label: 'Pago', icon: '💳', path: 'pago', component: PagoAdmin },
     { id: 'resena', label: 'Reseña', icon: '⭐', path: 'resena', component: ResenaAdmin },
+    { id: 'reporte_incidencia', label: 'Reporte Incidencia', icon: '⚠️', path: 'reporte_incidencia', component: Reporte_incidenciaAdmin },
+    { id: 'encargado', label: 'Encargado', icon: '👨‍💼', path: 'encargado', component: EncargadoAdmin },
+    { id: 'control', label: 'Control', icon: '🎮', path: 'control', component: ControlAdmin },
     { id: 'disciplina', label: 'Disciplina', icon: '🥋', path: 'disciplina', component: Disciplina },
   ],
   CONTROL: [
-    { id: 'qr_reserva', label: 'QR Reserva', icon: '📱', path: 'qr-reserva', component: QR_Reserva },
-    { id: 'reserva', label: 'Reserva', icon: '📅', path: 'reserva', component: Reserva },
-    { id: 'resena', label: 'Reseña', icon: '⭐', path: 'resena', component: Resena },
-    { id: 'qr_control', label: 'QR Control', icon: '📱', path: 'qr-control', component: QRControl },
+    { id: 'qr_reserva', label: 'QR Reserva', icon: '📱', path: 'qr-reserva', component: QR_AccesoEncargado },
 
   ],
   ENCARGADO: [
-    { id: 'reporte_incidencia', label: 'Reporte Incidencia', icon: '⚠️', path: 'reporte-incidencia', component: Reporte_Incidencia },
-    { id: 'reserva', label: 'Reserva', icon: '📅', path: 'reserva', component: Reserva },
-    { id: 'reserva_horario', label: 'Reserva Horario', icon: '⏰', path: 'reserva-horario', component: Reserva_Horario },
-    { id: 'reporte_encargado', label: 'Reporte Encargado', icon: '⚠️', path: 'reporte-encargado', component: ReporteEncargado },
+    { id: 'reporte_incidencia', label: 'Reporte Incidencia', icon: '⚠️', path: 'reporte-incidencia', component: Reporte_IncidenciaEncargado },
+    { id: 'reserva', label: 'Reserva', icon: '📅', path: 'reserva', component: ReservaEncargado },
+    { id: 'espacio_deportivo', label: 'Espacio Deportivo', icon: '🏟️', path: 'espacio-deportivo', component: Espacio_DeportivoEncargado },
+    { id: 'cancha', label: 'Cancha', icon: '🎾', path: 'cancha', component: CanchaEncargado },
 
   ],
 };
@@ -127,13 +135,24 @@ const Header = ({ title, toggleSidebar, isSidebarOpen }) => {
   );
 };
 
-  const getMainRole = (user) => {
-    if (!user) return null;
-    if (Array.isArray(user.roles)) {
-      return user.roles.find(r => String(r?.rol ?? r).toUpperCase() === 'ADMIN_ESP_DEP') ? 'ADMIN_ESP_DEP' : null;
-    }
-    return String(user.role || '').toUpperCase() === 'ADMIN_ESP_DEP' ? 'ADMIN_ESP_DEP' : null;
-  };
+const getMainRole = (user) => {
+  if (!user) return null;
+
+  let roles = [];
+
+  if (Array.isArray(user.roles)) {
+    roles = user.roles.map(r => String(r?.rol ?? r).toUpperCase());
+  } else if (user.role) {
+    roles = [String(user.role).toUpperCase()];
+  }
+
+  if (roles.includes('ADMIN_ESP_DEP')) return 'ADMIN_ESP_DEP';
+  if (roles.includes('ENCARGADO')) return 'ENCARGADO';
+  if (roles.includes('CONTROL')) return 'CONTROL';
+
+  return null;
+};
+
 
 const Sidebar = ({ routes, onPageChange, currentPage, onLogout, user, isSidebarOpen, toggleSidebar }) => {
   return (
@@ -154,17 +173,27 @@ const Sidebar = ({ routes, onPageChange, currentPage, onLogout, user, isSidebarO
             </svg>
             Cerrar Sesión
           </button>
-          {getMainRole(user) === 'ADMIN_ESP_DEP' && (
-            <button
-              onClick={() => window.location.href = '/'} // o la ruta que quieras (por ejemplo '/cliente' o '/home')
-              className="w-full text-[#23475F] hover:text-[#01CD6C] text-sm font-medium flex items-center mt-3"
-            >
-              <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A9 9 0 0112 15a9 9 0 016.879 2.804M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Volver a Vista Cliente
-            </button>
-          )}
+          {(
+            getMainRole(user) === 'ADMIN_ESP_DEP' ||
+            getMainRole(user) === 'ENCARGADO' ||
+            getMainRole(user) === 'CONTROL'
+          ) && (
+              <button
+                onClick={() => (window.location.href = '/')}
+                className="w-full text-[#23475F] hover:text-[#01CD6C] text-sm font-medium flex items-center mt-3"
+              >
+                <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5.121 17.804A9 9 0 0112 15a9 9 0 016.879 2.804M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                </svg>
+                Volver a Vista Cliente
+              </button>
+            )}
+
         </div>
         <button
           className="text-[#23475F] hover:text-[#01CD6C] focus:outline-none"
@@ -185,8 +214,8 @@ const Sidebar = ({ routes, onPageChange, currentPage, onLogout, user, isSidebarO
               toggleSidebar();
             }}
             className={`w-full flex items-center px-6 py-3 text-left transition-colors duration-200 ${currentPage === item.id
-                ? 'bg-[#01CD6C] text-white border-r-2 border-[#23475F]'
-                : 'text-[#23475F] hover:bg-[#01CD6C] hover:text-white'
+              ? 'bg-[#01CD6C] text-white border-r-2 border-[#23475F]'
+              : 'text-[#23475F] hover:bg-[#01CD6C] hover:text-white'
               }`}
           >
             <span className="text-lg mr-3">{item.icon}</span>
@@ -224,7 +253,7 @@ const PaginaPrincipal = () => {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
 
-      
+
       setIsAuthenticated(true);
 
       const effectiveRole = pickEffectiveRole(parsedUser);
@@ -258,26 +287,26 @@ const PaginaPrincipal = () => {
   }, [navigate, location.pathname]);
 
   // 👇 pega esto debajo del useEffect que setea user/routes y hace navigate según ruta
-useEffect(() => {
-  // espera a que el primer efecto termine
-  if (loading) return;
+  useEffect(() => {
+    // espera a que el primer efecto termine
+    if (loading) return;
 
-  const isAdminPath = location.pathname.startsWith('/administrador');
-  if (!isAdminPath) return;
+    const isAdminPath = location.pathname.startsWith('/administrador');
+    if (!isAdminPath) return;
 
-  const userData = localStorage.getItem('user');
-  if (!userData) return;
+    const userData = localStorage.getItem('user');
+    if (!userData) return;
 
-  const parsed = JSON.parse(userData);
-  const roles = getUserRoles(parsed);
-  const hasPanelRole = roles.some(r => PANEL_ROLES.includes(r));
+    const parsed = JSON.parse(userData);
+    const roles = getUserRoles(parsed);
+    const hasPanelRole = roles.some(r => PANEL_ROLES.includes(r));
 
-  if (!hasPanelRole) {
-    // redirige a la vista pública o perfil del cliente
-    navigate('/espacios-deportivos', { replace: true });
-    // o si tienes una ruta de perfil: navigate('/mi-perfil', { replace: true });
-  }
-}, [loading, location.pathname, navigate]);
+    if (!hasPanelRole) {
+      // redirige a la vista pública o perfil del cliente
+      navigate('/espacios-deportivos', { replace: true });
+      // o si tienes una ruta de perfil: navigate('/mi-perfil', { replace: true });
+    }
+  }, [loading, location.pathname, navigate]);
 
 
   const handlePageChange = (page, title) => {

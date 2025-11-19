@@ -21,6 +21,9 @@ const empresaRoutes = require('./api/admin/empresa');
 const reserva_horarioRoutes = require('./api/admin/reserva_horario');
 const se_practicaRoutes = require('./api/admin/se_practica');
 const participa_enRoutes = require('./api/admin/participa_en');
+const solicitud_admin_esp_depRoutes = require('./api/admin/solicitud_admin');
+const solicitud_encargadoRoutes = require('./api/admin/solicitud_encargado');
+const solicitud_controlRoutes = require('./api/admin/solicitud_control');
 
 // rutas casuales
 const registroRoutes = require('./api/casual/registro');
@@ -30,25 +33,29 @@ const cancha_casualRoutes = require('./api/casual/cancha-casual');
 const resena_casualRoutes = require('./api/casual/resena-publica');
 
 // rutas según roles ya definidos
-const espacio_adminRoutes = require('./api/roles/admin/espacio_admin');
-const cancha_adminRoutes = require('./api/roles/admin/cancha_admin');
-const reserva_adminRoutes = require('./api/roles/admin/reserva_admin');
-const reserva_horario_adminRoutes = require('./api/roles/admin/reserva_horario_admin');
-const resena_adminRoutes = require('./api/roles/admin/resena_admin');
-const dashboard_adminRoutes = require('./api/roles/admin/dashboard_admin');
-const pago_adminRoutes = require('./api/roles/admin/pago_admin');
-const solicitud_admin_esp_depRoutes = require('./api/roles/admin/solicitud_admin');
-const solicitud_rolRoutes = require('./api/roles/solicitud_rol');
+const espacio_adminRoutes = require('./api/roles/admin_esp_dep/espacio_admin');
+const cancha_adminRoutes = require('./api/roles/admin_esp_dep/cancha_admin');
+const reserva_adminRoutes = require('./api/roles/admin_esp_dep/reserva_admin');
+const reserva_horario_adminRoutes = require('./api/roles/admin_esp_dep/reserva_horario_admin');
+const resena_adminRoutes = require('./api/roles/admin_esp_dep/resena_admin');
+const dashboard_adminRoutes = require('./api/roles/admin_esp_dep/dashboard_admin');
+const pago_adminRoutes = require('./api/roles/admin_esp_dep/pago_admin');
+const reporte_incidencia_adminRoutes = require('./api/roles/admin_esp_dep/reporte_incidencia_admin');
+const encargado_adminRoutes = require('./api/roles/admin_esp_dep/encargado_admin');
+const control_adminRoutes = require('./api/roles/admin_esp_dep/control_admin');
+
+const espacio_encargadoRoutes = require('./api/roles/encargado/espacio_encargado');
+const cancha_encargadoRoutes = require('./api/roles/encargado/cancha_encargado');
+const reserva_encargadoRoutes = require('./api/roles/encargado/reserva_encargado');
+const reporte_incidencia_encargadoRoutes = require('./api/roles/encargado/reporte_incidencia_encargado');
+
+const qr_acceso_controlRoutes = require('./api/roles/control/qr_acceso_control');
 
 const unirse_reservaRoutes = require('./api/roles/deportista/unirse_reserva');
 const reserva_deportistaRoutes = require('./api/roles/deportista/reserva_deportista');
 
 const resena_clienteRoutes = require('./api/roles/cliente/resena_cliente');
 const reserva_clienteRoutes = require('./api/roles/cliente/reserva_cliente');
-
-const qr_controlRoutes = require('./api/roles/qr_control');
-const reporte_encargadoRoutes = require('./api/roles/reporte_encargado');
-
 
 const x_imagenRoutes = require('./api/x_imagen');
 
@@ -81,6 +88,8 @@ try {
   app.use('/reserva-horario', reserva_horarioRoutes);
   app.use('/se_practica', se_practicaRoutes);
   app.use('/participa_en', participa_enRoutes);
+  app.use('/solicitud-encargado', solicitud_encargadoRoutes);
+  app.use('/solicitud-control', solicitud_controlRoutes);
 
   // rutas casuales
   app.use('/espacio-deportivo-casual', espacio_deportivo_casualRoutes);
@@ -97,12 +106,21 @@ try {
   app.use('/resena-admin', resena_adminRoutes);
   app.use('/dashboard-admin', dashboard_adminRoutes);
   app.use('/pago-admin', pago_adminRoutes);
-  app.use('/qr-control', qr_controlRoutes);
-  app.use('/reporte-encargado', reporte_encargadoRoutes);
   app.use('/resena-cliente', resena_clienteRoutes);
   app.use('/reserva-cliente', reserva_clienteRoutes);
   app.use('/solicitud-admin-esp-dep', solicitud_admin_esp_depRoutes);
-  app.use('/solicitud-rol', solicitud_rolRoutes);
+  app.use('/reporte-incidencia-admin', reporte_incidencia_adminRoutes);
+  app.use('/encargado-admin', encargado_adminRoutes);
+  app.use('/control-admin', control_adminRoutes);
+
+  app.use('/espacio-encargado', espacio_encargadoRoutes);
+  app.use('/cancha-encargado', cancha_encargadoRoutes);
+  app.use('/reserva-encargado', reserva_encargadoRoutes);
+  app.use('/reporte-incidencia-encargado', reporte_incidencia_encargadoRoutes);
+
+  app.use('/qr-acceso-control', qr_acceso_controlRoutes);
+
+  app.use('/reserva-encargado', reserva_encargadoRoutes);
 
   app.use('/unirse-reserva', unirse_reservaRoutes);
   app.use('/reserva-deportista', reserva_deportistaRoutes);

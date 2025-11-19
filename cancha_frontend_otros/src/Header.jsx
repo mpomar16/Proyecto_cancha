@@ -131,6 +131,15 @@ const Header = () => {
 
   const availableRoles = rolesDisponibles.filter(r => !userRolesSet.has(r.valor));
 
+  const [showRoleRequestModal, setShowRoleRequestModal] = useState(false);
+  const handleSendRoleRequestFromModal = () => {
+    handleSendRoleRequest();
+  };
+
+
+  const [espaciosEncargado, setEspaciosEncargado] = useState([]);
+  const [loadingEspaciosEncargado, setLoadingEspaciosEncargado] = useState(false);
+
 
 
   const fetchEspaciosLibres = async () => {
@@ -151,6 +160,40 @@ const Header = () => {
       setEspaciosLoading(false);
     }
   };
+
+  const fetchEspaciosForEncargado = async () => {
+    setLoadingEspaciosEncargado(true);
+    setRoleRequestError(null);
+    try {
+      const r = await api.get("/espacio_deportivo/datos-especificos", {
+        params: { limit: 1000, offset: 0 }
+      });
+
+      console.log("respuesta espacios encargado:", r.data);
+
+      const datos = r.data?.datos || {};
+      const list =
+        Array.isArray(datos.espacios)
+          ? datos.espacios
+          : Array.isArray(r.data?.espacios)
+            ? r.data.espacios
+            : Array.isArray(datos.lista)
+              ? datos.lista
+              : [];
+
+      setEspaciosEncargado(list);
+      if (list.length === 0) {
+        setRoleRequestError("No hay espacios disponibles o la respuesta esta vacia");
+      }
+    } catch (e) {
+      console.error("error cargando espacios para encargado", e);
+      setEspaciosEncargado([]);
+      setRoleRequestError(e.response?.data?.mensaje || "Error al cargar espacios");
+    } finally {
+      setLoadingEspaciosEncargado(false);
+    }
+  };
+
 
 
   // Check login status and load user data
@@ -355,7 +398,7 @@ const Header = () => {
 
       else if (rol === 'control' || rol === 'encargado') {
         // solicitud normal de rol
-        await api.post('/solicitud-rol/', {
+        await api.post('/solicitud-encargado/', {
           id_usuario: newUserId,
           rol,
           motivo: registerData.motivo || null
@@ -414,6 +457,28 @@ const Header = () => {
     setShowMenu(false);
     navigate('/');
   };
+
+  const handleRoleSelect = async (e) => {
+    const v = e.target.value;
+
+    setRoleRequest({
+      rol: v,
+      id_espacio: "",
+      motivo: "",
+    });
+
+    setRoleRequestError(null);
+    setRoleRequestSuccess(null);
+
+    if (v === "admin_esp_dep") {
+      if (!espaciosLibres.length) fetchEspaciosLibres();
+    }
+
+    if (v === "encargado") {
+      fetchEspaciosForEncargado();
+    }
+  };
+
 
   // Handle image error
   const handleImageError = (e) => {
@@ -612,14 +677,19 @@ const Header = () => {
         if (!ok) throw new Error(res.data?.mensaje || 'No se pudo crear la solicitud');
 
         setRoleRequestSuccess('Solicitud enviada correctamente');
-      } else if (roleRequest.rol === 'control' || roleRequest.rol === 'encargado') {
+      } else if (roleRequest.rol === 'encargado') {
+        if (!roleRequest.id_espacio) {
+          setRoleRequestError('Debes seleccionar un espacio');
+          setRoleRequestLoading(false);
+          return;
+        }
+
         const payload = {
-          id_usuario: user.id_persona,
-          rol: roleRequest.rol,
+          id_espacio: Number(roleRequest.id_espacio),
           motivo: roleRequest.motivo || null,
         };
 
-        const res = await api.post('/solicitud-rol/', payload);
+        const res = await api.post('/solicitud-encargado/', payload);
         const ok = res.data?.exito === true;
         if (!ok) throw new Error(res.data?.mensaje || 'No se pudo crear la solicitud');
 
@@ -628,13 +698,16 @@ const Header = () => {
         setRoleRequestError('Rol no soportado');
       }
     } catch (err) {
-      setRoleRequestError(err?.message || 'Error al enviar solicitud');
+      const backendMsg = err?.response?.data?.mensaje || err?.response?.data?.error;
+      if (backendMsg) {
+        setRoleRequestError(backendMsg);
+      } else {
+        setRoleRequestError('No se pudo enviar la solicitud');
+      }
     } finally {
       setRoleRequestLoading(false);
     }
   };
-
-
 
   // Handle file change for profile image
   const handleFileChange = (e) => {
@@ -879,6 +952,19 @@ const Header = () => {
                       className="block w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#01CD6C] hover:text-white transition-colors duration-200"
                     >
                       Editar Mi Perfil
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        setShowRoleRequestModal(true);
+                        setRoleRequestError(null);
+                        setRoleRequestSuccess(null);
+                        setRoleRequest({ rol: "", id_espacio: "", motivo: "" });
+                      }}
+                      className="block w-full text-left px-4 py-2 text-[#23475F] hover:bg-[#01CD6C] hover:text-white transition-colors duration-200"
+                    >
+                      Solicitar Rol
                     </button>
                     <button
                       onClick={handleLogout}
@@ -1319,6 +1405,109 @@ const Header = () => {
         </div>
       )}
 
+      {showRoleRequestModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow w-full max-w-lg relative">
+
+            <button
+              onClick={() => setShowRoleRequestModal(false)}
+              className="absolute top-2 right-2 text-gray-700 text-2xl"
+            >
+              &times;
+            </button>
+
+            <h2 className="text-xl font-bold text-center mb-4">
+              Solicitar un nuevo rol
+            </h2>
+
+            {/* SELECT ROL */}
+            <label className="block text-sm font-medium mb-1">Rol</label>
+            <select
+              className="w-full border rounded px-3 py-2 mb-4"
+              value={roleRequest.rol}
+              onChange={handleRoleSelect}
+            >
+              <option value="">Seleccione un rol</option>
+              {availableRoles
+                .filter(r => r.valor !== "cliente")
+                .map(r => (
+                  <option key={r.valor} value={r.valor}>
+                    {r.etiqueta}
+                  </option>
+                ))}
+            </select>
+
+            {/* SELECT ESPACIO */}
+            {roleRequest.rol === "admin_esp_dep" && (
+              <>
+                <label className="block text-sm font-medium mb-1">Espacio deportivo</label>
+                <select
+                  className="w-full border rounded px-3 py-2 mb-4"
+                  value={roleRequest.id_espacio}
+                  onChange={(e) => setRoleRequest(prev => ({ ...prev, id_espacio: e.target.value }))}
+                >
+                  <option value="">Seleccione</option>
+                  {espaciosLibres.map(e => (
+                    <option key={e.id_espacio} value={e.id_espacio}>
+                      {e.nombre}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+
+            {roleRequest.rol === "encargado" && (
+              <>
+                <label className="block text-sm font-medium mb-1">Espacio deportivo</label>
+                <select
+                  className="w-full border rounded px-3 py-2 mb-4"
+                  value={roleRequest.id_espacio}
+                  onChange={(e) => setRoleRequest(prev => ({ ...prev, id_espacio: e.target.value }))}
+                >
+                  <option value="">Seleccione</option>
+                  {espaciosEncargado.map(e => (
+                    <option key={e.id_espacio} value={e.id_espacio}>
+                      {e.nombre}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+
+            {/* MOTIVO */}
+            <label className="block text-sm font-medium mb-1">Motivo</label>
+            <textarea
+              className="w-full border rounded px-3 py-2 mb-4"
+              rows={3}
+              value={roleRequest.motivo}
+              onChange={(e) => setRoleRequest(prev => ({ ...prev, motivo: e.target.value }))}
+              placeholder="Explique por que solicita este rol"
+            />
+
+            {/* ERRORES / EXITO */}
+            {roleRequestError && (
+              <p className="text-red-600 text-sm mb-3">{roleRequestError}</p>
+            )}
+            {roleRequestSuccess && (
+              <p className="text-green-600 text-sm mb-3">{roleRequestSuccess}</p>
+            )}
+
+            {/* BOTON ENVIAR */}
+            <button
+              onClick={() => handleSendRoleRequestFromModal()}
+              disabled={roleRequestLoading || !roleRequest.rol}
+              className={`w-full py-2 rounded text-white font-semibold ${roleRequestLoading || !roleRequest.rol
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-[#01CD6C] hover:bg-[#00b359]"
+                }`}
+            >
+              {roleRequestLoading ? "Enviando..." : "Enviar Solicitud"}
+            </button>
+          </div>
+        </div>
+      )}
+
+
       {/* Edit Profile Modal */}
       {showEditProfileModal && (
         <div className="fixed inset-0 bg-[#0F2634] bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1515,123 +1704,6 @@ const Header = () => {
                     Solo completa estos campos si deseas cambiar tu contraseña
                   </p>
                 </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-5 border border-gray-200 shadow-sm">
-                <h4 className="text-lg font-semibold text-[#23475F] mb-3 flex items-center">
-                  <svg className="w-5 h-5 mr-2 text-[#01CD6C]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7h3m0 0h3m-3 0v3m-6 4h3m0 0h3m-3 0v3M5 7h6m-6 4h3m-3 4h6" />
-                  </svg>
-                  Mandar solicitud para ser
-                </h4>
-
-                {availableRoles.length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                    Ya tienes todos los roles activos.
-                  </p>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-[#23475F]">
-                          Rol a solicitar
-                        </label>
-                        <select
-                          name="rol"
-                          value={roleRequest.rol}
-                          onChange={handleRoleRequestChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-[#01CD6C] focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-20 transition-all duration-200 bg-white appearance-none cursor-pointer"
-                        >
-                          <option value="">Selecciona un rol</option>
-                          {availableRoles
-                            .filter((r) => r.valor !== 'cliente')
-                            .map((r) => (
-                              <option key={r.valor} value={r.valor}>
-                                {r.etiqueta}
-                              </option>
-                            ))}
-                        </select>
-                      </div>
-
-                      {roleRequest.rol === 'admin_esp_dep' && (
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-[#23475F]">
-                            Espacio deportivo
-                          </label>
-                          {espaciosLoading ? (
-                            <div className="text-sm text-gray-500">Cargando espacios...</div>
-                          ) : espaciosError ? (
-                            <div className="text-sm text-[#A31621]">{espaciosError}</div>
-                          ) : (
-                            <select
-                              name="id_espacio"
-                              value={roleRequest.id_espacio}
-                              onChange={handleRoleRequestChange}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-[#01CD6C] focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-20 transition-all duration-200 bg-white appearance-none cursor-pointer"
-                            >
-                              <option value="">Selecciona un espacio</option>
-                              {espaciosLibres.map((e) => (
-                                <option key={e.id_espacio} value={e.id_espacio}>
-                                  {e.nombre} {e.direccion ? `- ${e.direccion}` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-4 space-y-2">
-                      <label className="block text-sm font-medium text-[#23475F]">
-                        Motivo de solicitud
-                      </label>
-                      <textarea
-                        name="motivo"
-                        value={roleRequest.motivo}
-                        onChange={handleRoleRequestChange}
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-[#01CD6C] focus:ring-2 focus:ring-[#01CD6C] focus:ring-opacity-20 transition-all duration-200 bg-white"
-                        placeholder="Explica por que solicitas este rol"
-                      />
-                    </div>
-
-                    {roleRequestError && (
-                      <p className="mt-3 text-sm text-[#A31621]">{roleRequestError}</p>
-                    )}
-                    {roleRequestSuccess && (
-                      <p className="mt-3 text-sm text-green-600">{roleRequestSuccess}</p>
-                    )}
-
-                    <div className="mt-4 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleSendRoleRequest}
-                        disabled={roleRequestLoading || !roleRequest.rol}
-                        className={`px-5 py-2 rounded-lg text-white font-semibold shadow-md flex items-center gap-2 ${roleRequestLoading || !roleRequest.rol
-                            ? 'bg-gray-400 cursor-not-allowed'
-                            : 'bg-[#01CD6C] hover:bg-[#00b359]'
-                          }`}
-                      >
-                        {roleRequestLoading ? (
-                          <>
-                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Enviando...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h8m0 0l-3-3m3 3l-3 3" />
-                            </svg>
-                            Mandar solicitud
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
 
               {/* Action Buttons */}
